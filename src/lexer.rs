@@ -8,7 +8,7 @@ pub enum Token {
     Extern,
     Identifier(String),
     Number(f64),
-    Op(char)
+    Op(char),
 }
 
 pub struct Lexer<'a> {
@@ -77,21 +77,27 @@ impl<'a> Lexer<'a> {
                 Some(&v) if Self::is_numeric(v) => {
                     val.push(v);
                     self.input_iter.next().unwrap();
-                },
-                None => { return None },
-                Some(_) => { break; },
+                }
+                None => return None,
+                Some(_) => {
+                    break;
+                }
             }
-        };
+        }
         val.parse().ok()
     }
 
     fn is_numeric(c: char) -> bool {
         matches!(c, '.' | '0'..='9')
     }
+}
 
-    pub fn get_token(&mut self) -> Token {
+impl Iterator for Lexer<'_> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
         self.consume_whitespaces();
-        match self.input_iter.peek() {
+        let token = match self.input_iter.peek() {
             None => Token::EOF,
             Some(c) if c.is_numeric() => match self.consume_numeric() {
                 None => panic!(),
@@ -107,27 +113,28 @@ impl<'a> Lexer<'a> {
                 self.input_iter.next().unwrap();
                 Token::Op(c)
             }
-        }
+        };
+        Some(token)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Token::{Def, Extern, Identifier, EOF, Number, Op};
+    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op, EOF};
 
     #[test]
     fn scan_strings() {
         let input = "  hello   1.42   +-   def  extern  ";
         let mut lexer = Lexer::new(input.chars());
-        assert_eq!(lexer.get_token(), Identifier("hello".to_string()));
-        assert_eq!(lexer.get_token(), Number(1.42));
-        assert_eq!(lexer.get_token(), Op('+'));
-        assert_eq!(lexer.get_token(), Op('-'));
-        assert_eq!(lexer.get_token(), Def);
-        assert_eq!(lexer.get_token(), Extern);
-        assert_eq!(lexer.get_token(), EOF);
-        assert_eq!(lexer.get_token(), EOF);
+        assert_eq!(lexer.next().unwrap(), Identifier("hello".to_string()));
+        assert_eq!(lexer.next().unwrap(), Number(1.42));
+        assert_eq!(lexer.next().unwrap(), Op('+'));
+        assert_eq!(lexer.next().unwrap(), Op('-'));
+        assert_eq!(lexer.next().unwrap(), Def);
+        assert_eq!(lexer.next().unwrap(), Extern);
+        assert_eq!(lexer.next().unwrap(), EOF);
+        assert_eq!(lexer.next().unwrap(), EOF);
     }
     #[test]
     fn scan_strings_with_comments() {
@@ -136,8 +143,7 @@ mod tests {
         # 1.42
         "#;
         let mut lexer = Lexer::new(input.chars());
-        assert_eq!(lexer.get_token(), Identifier("hello".to_string()));
-        assert_eq!(lexer.get_token(), EOF);
+        assert_eq!(lexer.next().unwrap(), Identifier("hello".to_string()));
+        assert_eq!(lexer.next().unwrap(), EOF);
     }
-
 }
