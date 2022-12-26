@@ -3,7 +3,6 @@ use std::str::Chars;
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    EOF,
     Def,
     Extern,
     Identifier(String),
@@ -98,7 +97,7 @@ impl Iterator for Lexer<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         self.consume_whitespaces();
         let token = match self.input_iter.peek() {
-            None => Token::EOF,
+            None => return None,
             Some(c) if c.is_numeric() => match self.consume_numeric() {
                 None => panic!(),
                 Some(v) => Token::Number(v),
@@ -121,7 +120,7 @@ impl Iterator for Lexer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op, EOF};
+    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op};
 
     #[test]
     fn scan_strings() {
@@ -133,8 +132,7 @@ mod tests {
         assert_eq!(lexer.next().unwrap(), Op('-'));
         assert_eq!(lexer.next().unwrap(), Def);
         assert_eq!(lexer.next().unwrap(), Extern);
-        assert_eq!(lexer.next().unwrap(), EOF);
-        assert_eq!(lexer.next().unwrap(), EOF);
+        assert!(lexer.next().is_none());
     }
     #[test]
     fn scan_strings_with_comments() {
@@ -144,6 +142,6 @@ mod tests {
         "#;
         let mut lexer = Lexer::new(input.chars());
         assert_eq!(lexer.next().unwrap(), Identifier("hello".to_string()));
-        assert_eq!(lexer.next().unwrap(), EOF);
+        assert!(lexer.next().is_none());
     }
 }
