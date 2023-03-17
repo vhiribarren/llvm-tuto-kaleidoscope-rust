@@ -8,6 +8,7 @@ pub enum Token {
     Identifier(String),
     Number(f64),
     Op(char),
+    EoF,
 }
 
 pub struct Lexer<'a> {
@@ -58,7 +59,9 @@ impl<'a> Lexer<'a> {
         let mut result = String::new();
         loop {
             match self.input_iter.peek() {
-                None => return None,
+                None => {
+                    break;
+                }
                 Some(c) if c.is_alphanumeric() => {
                     result.push(self.input_iter.next().unwrap());
                     continue;
@@ -77,7 +80,9 @@ impl<'a> Lexer<'a> {
                     val.push(v);
                     self.input_iter.next().unwrap();
                 }
-                None => return None,
+                None => {
+                    break;
+                }
                 Some(_) => {
                     break;
                 }
