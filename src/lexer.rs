@@ -59,9 +59,7 @@ impl<'a> Lexer<'a> {
         let mut result = String::new();
         loop {
             match self.input_iter.peek() {
-                None => {
-                    break;
-                }
+                None => break,
                 Some(c) if c.is_alphanumeric() => {
                     result.push(self.input_iter.next().unwrap());
                     continue;
@@ -80,10 +78,7 @@ impl<'a> Lexer<'a> {
                     val.push(v);
                     self.input_iter.next().unwrap();
                 }
-                None => {
-                    break;
-                }
-                Some(_) => {
+                Some(_) | None => {
                     break;
                 }
             }
@@ -126,6 +121,41 @@ impl Iterator for Lexer<'_> {
 mod tests {
     use super::*;
     use crate::lexer::Token::{Def, Extern, Identifier, Number, Op};
+
+    #[test]
+    fn scan_simple_def() {
+        let input = "def";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Def);
+    }
+
+    #[test]
+    fn scan_simple_extern() {
+        let input = "extern";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Extern);
+    }
+
+    #[test]
+    fn scan_simple_number() {
+        let input = "42";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Number(42_f64));
+    }
+
+    #[test]
+    fn scan_simple_identifier() {
+        let input = "abcd";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Identifier(String::from("abcd")));
+    }
+
+    #[test]
+    fn scan_simple_op() {
+        let input = "(";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Op('('));
+    }
 
     #[test]
     fn scan_strings() {
