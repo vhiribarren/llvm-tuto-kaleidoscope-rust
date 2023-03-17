@@ -1,15 +1,15 @@
 #[derive(Debug)]
 pub enum TopAST {
-    FunctionAST(FunctionAST),
-    PrototypeAST(PrototypeAST),
+    Function(FunctionAST),
+    Prototype(PrototypeAST),
 }
 
 #[derive(Debug)]
 pub enum ExprAST {
-    NumberExprAST(NumberExprAST),
-    VariableExprAST(VariableExprAST),
-    BinaryExprAST(BinaryExprAST),
-    CallExprAST(CallExprAST),
+    NumberExpr(NumberExprAST),
+    VariableExpr(VariableExprAST),
+    BinaryExpr(BinaryExprAST),
+    CallExpr(CallExprAST),
 }
 
 #[derive(Debug)]

@@ -40,13 +40,13 @@ impl<'a> Parser<'a> {
         let mut result = vec![];
         loop {
             match self.peek_token() {
-                Token::Def => result.push(TopAST::FunctionAST(self.parse_definition()?)),
-                Token::Extern => result.push(TopAST::PrototypeAST(self.parse_extern()?)),
+                Token::Def => result.push(TopAST::Function(self.parse_definition()?)),
+                Token::Extern => result.push(TopAST::Prototype(self.parse_extern()?)),
                 Token::Op(';') => {
                     self.consume_token();
                 }
                 Token::EoF => return Ok(result),
-                _ => result.push(TopAST::FunctionAST(self.parse_top_level_expression()?)),
+                _ => result.push(TopAST::Function(self.parse_top_level_expression()?)),
             };
         }
     }
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
                     rhs = self.parse_bin_op_rhs(tok_prec + 1, rhs)?;
                 }
             }
-            lhs = ExprAST::BinaryExprAST(BinaryExprAST {
+            lhs = ExprAST::BinaryExpr(BinaryExprAST {
                 op,
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
@@ -107,7 +107,7 @@ impl<'a> Parser<'a> {
 
     fn parse_number_expr(&mut self) -> Result<ExprAST> {
         match self.consume_token() {
-            Token::Number(val) => Ok(ExprAST::NumberExprAST(NumberExprAST { val })),
+            Token::Number(val) => Ok(ExprAST::NumberExpr(NumberExprAST { val })),
             _ => bail!("Was waiting for a Token::Number"),
         }
     }
@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
             _ => bail!("Was waiting for a Token::Identifier"),
         };
         if !matches!(self.peek_token(), Token::Op('(')) {
-            return Ok(ExprAST::VariableExprAST(VariableExprAST { name }));
+            return Ok(ExprAST::VariableExpr(VariableExprAST { name }));
         }
         let mut args = vec![];
         if !matches!(self.consume_token(), Token::Op(')')) {
@@ -143,7 +143,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.consume_token();
-        Ok(ExprAST::CallExprAST(CallExprAST { callee: name, args }))
+        Ok(ExprAST::CallExpr(CallExprAST { callee: name, args }))
     }
 
     fn parse_prototype(&mut self) -> Result<PrototypeAST> {
