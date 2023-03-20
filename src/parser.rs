@@ -2,8 +2,8 @@ use anyhow::{bail, ensure, Result};
 use once_cell::sync::Lazy;
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, NumberExprAST, PrototypeAST, TopAST,
-    VariableExprAST,
+    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, KaleoGrammar, NumberExprAST, PrototypeAST,
+    TopAST, VariableExprAST,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -29,14 +29,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(lexer: Lexer<'a>) -> Result<Vec<TopAST>> {
+    pub fn parse(lexer: Lexer<'a>) -> Result<KaleoGrammar> {
         let parser = &mut Parser {
             lexer: lexer.peekable(),
         };
         parser.parse_top()
     }
 
-    fn parse_top(&mut self) -> Result<Vec<TopAST>> {
+    fn parse_top(&mut self) -> Result<KaleoGrammar> {
         let mut result = vec![];
         loop {
             match self.peek_token() {
@@ -45,7 +45,7 @@ impl<'a> Parser<'a> {
                 Token::Op(';') => {
                     self.consume_token();
                 }
-                Token::EoF => return Ok(result),
+                Token::EoF => return Ok(KaleoGrammar(result)),
                 _ => result.push(TopAST::Function(self.parse_top_level_expression()?)),
             };
         }
@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-pub fn generate_ast(input: &str) -> Result<Vec<TopAST>> {
+pub fn generate_ast(input: &str) -> Result<KaleoGrammar> {
     let lexer = Lexer::new(input.chars());
     Parser::parse(lexer)
 }
