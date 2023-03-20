@@ -29,8 +29,9 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
+    passes::PassManager,
     types::BasicMetadataTypeEnum,
-    values::{AnyValue, AnyValueEnum},
+    values::{AnyValue, AnyValueEnum, FunctionValue},
 };
 
 use crate::ast::{
@@ -43,16 +44,29 @@ pub struct CodeGenVisitor<'ctx> {
     named_values_ctx: HashMap<String, AnyValueEnum<'ctx>>,
     builder: Builder<'ctx>,
     pub module: Module<'ctx>,
+    pass_manager: PassManager<FunctionValue<'ctx>>,
 }
 
 impl<'ctx> CodeGenVisitor<'ctx> {
     pub fn new(context: &'ctx Context) -> Self {
+        let (module, pass_manager) = Self::init_pass_manager(context);
         CodeGenVisitor {
             context,
             named_values_ctx: HashMap::new(),
             builder: context.create_builder(),
-            module: context.create_module("main"),
+            module,
+            pass_manager,
         }
+    }
+    fn init_pass_manager(context: &Context) -> (Module, PassManager<FunctionValue>) {
+        let module = context.create_module("my cool JIT");
+        let pass_manager = PassManager::create(&module);
+        pass_manager.add_instruction_combining_pass();
+        pass_manager.add_reassociate_pass();
+        pass_manager.add_gvn_pass();
+        pass_manager.add_cfg_simplification_pass();
+        pass_manager.initialize();
+        (module, pass_manager)
     }
 }
 
@@ -126,6 +140,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
             Ok(ret_val) => {
                 self.builder.build_return(Some(&ret_val.into_float_value()));
                 func.verify(false);
+                self.pass_manager.run_on(&func);
                 Ok(AnyValueEnum::FunctionValue(func))
             }
             error => {
