@@ -27,7 +27,7 @@ use once_cell::sync::Lazy;
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, FunctionAST, KaleoGrammar, NumberExprAST, PrototypeAST,
-    TopAST, VariableExprAST,
+    TopAST, VariableExprAST, ANONYM_FUNCTION,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -215,7 +215,7 @@ impl<'a> Parser<'a> {
     fn parse_top_level_expression(&mut self) -> Result<FunctionAST> {
         let expr = self.parse_expression()?;
         let anonymous_prototype = PrototypeAST {
-            name: String::from(""),
+            name: String::from(ANONYM_FUNCTION),
             args: vec![],
         };
         Ok(FunctionAST {
@@ -302,7 +302,7 @@ mod tests {
             }),
             TopAST::Function(FunctionAST {
                 proto: PrototypeAST {
-                    name: "".to_string(),
+                    name: ANONYM_FUNCTION.to_string(),
                     args: vec![],
                 },
                 body: ExprAST::VariableExpr(VariableExprAST {

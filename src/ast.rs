@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+pub const ANONYM_FUNCTION: &str = "__anon_expr";
+
 #[derive(Debug, PartialEq)]
 pub struct KaleoGrammar(pub Vec<TopAST>);
 

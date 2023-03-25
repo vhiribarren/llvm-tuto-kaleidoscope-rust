@@ -28,6 +28,7 @@ use anyhow::{anyhow, bail, ensure, Result};
 use inkwell::{
     builder::Builder,
     context::Context,
+    execution_engine::{ExecutionEngine, JitFunction},
     module::Module,
     passes::PassManager,
     types::BasicMetadataTypeEnum,
@@ -36,7 +37,7 @@ use inkwell::{
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, FunctionAST, NumberExprAST, PrototypeAST, TopAST,
-    VariableExprAST, Visitor,
+    VariableExprAST, Visitor, ANONYM_FUNCTION,
 };
 
 pub struct CodeGenVisitor<'ctx> {
@@ -45,17 +46,22 @@ pub struct CodeGenVisitor<'ctx> {
     builder: Builder<'ctx>,
     pub module: Module<'ctx>,
     pass_manager: PassManager<FunctionValue<'ctx>>,
+    execution_engine: ExecutionEngine<'ctx>,
 }
 
 impl<'ctx> CodeGenVisitor<'ctx> {
     pub fn new(context: &'ctx Context) -> Self {
         let (module, pass_manager) = Self::init_pass_manager(context);
+        let execution_engine = module
+            .create_jit_execution_engine(inkwell::OptimizationLevel::None)
+            .unwrap();
         CodeGenVisitor {
             context,
             named_values_ctx: HashMap::new(),
             builder: context.create_builder(),
             module,
             pass_manager,
+            execution_engine,
         }
     }
     fn init_pass_manager(context: &Context) -> (Module, PassManager<FunctionValue>) {
@@ -175,7 +181,17 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
     }
     fn visit_top(&mut self, top_elem: &TopAST) -> Self::Result {
         match top_elem {
-            TopAST::Function(func_elem) => self.visit_function(func_elem),
+            TopAST::Function(func_elem) => {
+                let func = self.visit_function(func_elem)?;
+                unsafe {
+                    if let Ok(top_func) = self.execution_engine.get_function(ANONYM_FUNCTION) {
+                        let result =
+                            (top_func as JitFunction<unsafe extern "C" fn() -> f64>).call();
+                        println!("Evaluated to: {result}");
+                    }
+                }
+                Ok(func)
+            }
             TopAST::Prototype(proto_elem) => self.visit_prototype(proto_elem),
         }
     }
