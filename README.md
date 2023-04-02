@@ -2,8 +2,40 @@
 
 _**Warning: WORK IN PROGRESS**_
 
-Following the tutorial: https://llvm.org/docs/tutorial/index.html
+This is a toy project to test LLVM and manipulate other tools. It works, but I
+do not necessarily follow all the best practices and the code is not necessarily
+robust against some errors.
 
+It follows the tutorial: https://llvm.org/docs/tutorial/index.html
+
+[Inkwel](https://github.com/TheDan64/inkwell) is used for LLVM bindings in Rust.
+
+Here what is currently done, with some differences with the original tutorial:
+
+- Step1: Lexer
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl01.html
+
+- Step 2: Parser and AST
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl02.html
+
+- Step 3: Intermediate Representation (IR) code generation
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl03.html
+
+- Step 4: JIT and Optimizer support
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl04.html
+    - JIT: with LLVM 15 and Inkwell bindings, I could not reproduce exactly the
+      code. But there was a way to easily create a JIT execution engine from a module.
+    - It it not possible to redefine an existing function.
+
+- Step 5: Control flow extension
+    - Work in progress
+
+
+## How to run
+
+Launch:
+
+    cargo run
 
 ## License
 
