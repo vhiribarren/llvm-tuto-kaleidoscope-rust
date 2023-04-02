@@ -41,8 +41,10 @@ fn launch_repl() -> Result<()> {
         match generate_ast(&line) {
             Ok(ast) => {
                 for ast_part in &ast.0 {
-                    let ir = visitor.visit_top(ast_part)?.print_to_string().to_string();
-                    println!("{ir}");
+                    match visitor.visit_top(ast_part) {
+                        Ok(ir_value) => println!("{}", ir_value.print_to_string().to_string()),
+                        Err(err) => eprintln!("{err}"),
+                    };
                 }
             }
             Err(err) => eprintln!("{err}"),
@@ -50,6 +52,6 @@ fn launch_repl() -> Result<()> {
         eprint!("\nready> ");
     }
     eprintln!("EOF, stopping parsing");
-    visitor.module.print_to_stderr();
+    visitor.print_to_stderr();
     Ok(())
 }

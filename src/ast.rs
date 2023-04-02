@@ -64,7 +64,7 @@ pub struct CallExprAST {
     pub args: Vec<ExprAST>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PrototypeAST {
     pub name: String,
     pub args: Vec<String>,
@@ -74,6 +74,12 @@ pub struct PrototypeAST {
 pub struct FunctionAST {
     pub proto: PrototypeAST,
     pub body: ExprAST,
+}
+
+impl FunctionAST {
+    pub fn is_top_function(&self) -> bool {
+        self.proto.name == ANONYM_FUNCTION
+    }
 }
 
 pub trait Visitor {
