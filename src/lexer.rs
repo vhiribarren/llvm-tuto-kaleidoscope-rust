@@ -32,6 +32,9 @@ pub enum Token {
     Identifier(String),
     Number(f64),
     Op(char),
+    If,
+    Then,
+    Else,
     EoF,
 }
 
@@ -130,6 +133,9 @@ impl Iterator for Lexer<'_> {
                 None => panic!(),
                 Some(val) if val == "def" => Token::Def,
                 Some(val) if val == "extern" => Token::Extern,
+                Some(val) if val == "if" => Token::If,
+                Some(val) if val == "then" => Token::Then,
+                Some(val) if val == "else" => Token::Else,
                 Some(any) => Token::Identifier(any),
             },
             Some(&c) => {
@@ -144,7 +150,7 @@ impl Iterator for Lexer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op};
+    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op, If, Then, Else};
 
     #[test]
     fn scan_simple_def() {
@@ -158,6 +164,27 @@ mod tests {
         let input = "extern";
         let mut lexer = Lexer::new(input.chars());
         assert_eq!(lexer.next().unwrap(), Extern);
+    }
+
+    #[test]
+    fn scan_simple_if() {
+        let input = "if";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), If);
+    }
+
+    #[test]
+    fn scan_simple_then() {
+        let input = "then";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Then);
+    }
+
+    #[test]
+    fn scan_simple_else() {
+        let input = "else";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Else);
     }
 
     #[test]
@@ -183,7 +210,7 @@ mod tests {
 
     #[test]
     fn scan_strings() {
-        let input = "  hello   1.42   +-   def  extern  ";
+        let input = "  hello   1.42   +-   def  extern   if  else then ";
         let mut lexer = Lexer::new(input.chars());
         assert_eq!(lexer.next().unwrap(), Identifier("hello".to_string()));
         assert_eq!(lexer.next().unwrap(), Number(1.42));
@@ -191,6 +218,9 @@ mod tests {
         assert_eq!(lexer.next().unwrap(), Op('-'));
         assert_eq!(lexer.next().unwrap(), Def);
         assert_eq!(lexer.next().unwrap(), Extern);
+        assert_eq!(lexer.next().unwrap(), If);
+        assert_eq!(lexer.next().unwrap(), Else);
+        assert_eq!(lexer.next().unwrap(), Then);
         assert!(lexer.next().is_none());
     }
     #[test]

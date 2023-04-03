@@ -241,10 +241,10 @@ mod tests {
         extern sin(a);
         "#;
         let ast = generate_ast(input).unwrap();
-        let result = vec![TopAST::Prototype(PrototypeAST {
+        let result = KaleoGrammar(vec![TopAST::Prototype(PrototypeAST {
             name: String::from("sin"),
             args: vec![String::from("a")],
-        })];
+        })]);
         assert_eq!(ast, result);
     }
 
@@ -254,7 +254,7 @@ mod tests {
         def foo(x y) x+foo(y, 4.0);
         "#;
         let ast = generate_ast(input).unwrap();
-        let result = vec![TopAST::Function(FunctionAST {
+        let result = KaleoGrammar(vec![TopAST::Function(FunctionAST {
             proto: PrototypeAST {
                 name: "foo".to_string(),
                 args: vec!["x".to_string(), "y".to_string()],
@@ -274,7 +274,7 @@ mod tests {
                     ],
                 })),
             }),
-        })];
+        })]);
         assert_eq!(ast, result);
     }
 
@@ -284,7 +284,7 @@ mod tests {
         def foo(x y) x+y y;
         "#;
         let ast = generate_ast(input).unwrap();
-        let result = vec![
+        let result = KaleoGrammar(vec![
             TopAST::Function(FunctionAST {
                 proto: PrototypeAST {
                     name: "foo".to_string(),
@@ -309,7 +309,7 @@ mod tests {
                     name: "y".to_string(),
                 }),
             }),
-        ];
+        ]);
         assert_eq!(ast, result);
     }
 
