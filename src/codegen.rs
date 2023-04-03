@@ -116,7 +116,12 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
             ExprAST::VariableExpr(var_elem) => self.visit_variable_expr(var_elem),
             ExprAST::BinaryExpr(bin_elem) => self.visit_binary_expr(bin_elem),
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
+            ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
         }
+    }
+
+    fn visit_if_expr(&mut self, _if_elem: &crate::ast::IfExprAST) -> Self::Result {
+        todo!()
     }
 
     fn visit_number_expr(&mut self, num_elem: &NumberExprAST) -> Self::Result {

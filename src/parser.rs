@@ -26,8 +26,8 @@ use anyhow::{bail, ensure, Result};
 use once_cell::sync::Lazy;
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, KaleoGrammar, NumberExprAST, PrototypeAST,
-    TopAST, VariableExprAST, ANONYM_FUNCTION,
+    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, IfExprAST, KaleoGrammar, NumberExprAST,
+    PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -80,6 +80,7 @@ impl<'a> Parser<'a> {
             Token::Identifier(_) => self.parse_identifier_expr(),
             Token::Number(_) => self.parse_number_expr(),
             Token::Op('(') => self.parse_paren_expr(),
+            Token::If => self.parse_if_expr(),
             _ => bail!("Unknown token when expecting an expression"),
         }
     }
@@ -143,6 +144,29 @@ impl<'a> Parser<'a> {
             Token::Op(')') => expr,
             _ => bail!("Was expecting a ')'"),
         }
+    }
+
+    fn parse_if_expr(&mut self) -> Result<ExprAST> {
+        ensure!(
+            matches!(self.consume_token(), Token::If),
+            "Was waiting for If token"
+        );
+        let condition = Box::new(self.parse_expression()?);
+        ensure!(
+            matches!(self.consume_token(), Token::Then),
+            "Was waiting for Then token"
+        );
+        let then_block = Box::new(self.parse_expression()?);
+        ensure!(
+            matches!(self.consume_token(), Token::Else),
+            "Was waiting for Else token"
+        );
+        let else_block = Box::new(self.parse_expression()?);
+        Ok(ExprAST::IfExpr(IfExprAST {
+            condition,
+            then_block,
+            else_block,
+        }))
     }
 
     fn parse_identifier_expr(&mut self) -> Result<ExprAST> {

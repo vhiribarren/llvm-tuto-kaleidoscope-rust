@@ -150,7 +150,7 @@ impl Iterator for Lexer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Token::{Def, Extern, Identifier, Number, Op, If, Then, Else};
+    use crate::lexer::Token::{Def, Else, Extern, Identifier, If, Number, Op, Then};
 
     #[test]
     fn scan_simple_def() {

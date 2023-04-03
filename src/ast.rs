@@ -39,6 +39,7 @@ pub enum ExprAST {
     VariableExpr(VariableExprAST),
     BinaryExpr(BinaryExprAST),
     CallExpr(CallExprAST),
+    IfExpr(IfExprAST),
 }
 
 #[derive(Debug, PartialEq)]
@@ -82,6 +83,13 @@ impl FunctionAST {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct IfExprAST {
+    pub condition: Box<ExprAST>,
+    pub then_block: Box<ExprAST>,
+    pub else_block: Box<ExprAST>,
+}
+
 pub trait Visitor {
     type Result;
     fn visit_top(&mut self, s: &TopAST) -> Self::Result;
@@ -92,6 +100,7 @@ pub trait Visitor {
     fn visit_variable_expr(&mut self, e: &VariableExprAST) -> Self::Result;
     fn visit_binary_expr(&mut self, e: &BinaryExprAST) -> Self::Result;
     fn visit_call_expr(&mut self, e: &CallExprAST) -> Self::Result;
+    fn visit_if_expr(&mut self, e: &IfExprAST) -> Self::Result;
 }
 
 pub struct PrintVisitor;
@@ -120,6 +129,7 @@ impl Visitor for PrintVisitor {
             ExprAST::VariableExpr(var_elem) => self.visit_variable_expr(var_elem),
             ExprAST::BinaryExpr(bin_elem) => self.visit_binary_expr(bin_elem),
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
+            ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
         }
     }
     fn visit_number_expr(&mut self, _num_elem: &NumberExprAST) {
@@ -138,5 +148,11 @@ impl Visitor for PrintVisitor {
         for expr_elem in &call_elem.args {
             self.visit_expr(expr_elem);
         }
+    }
+    fn visit_if_expr(&mut self, if_elem: &IfExprAST) -> Self::Result {
+        println!("Visit if expr");
+        self.visit_expr(&if_elem.condition);
+        self.visit_expr(&if_elem.then_block);
+        self.visit_expr(&if_elem.else_block);
     }
 }
