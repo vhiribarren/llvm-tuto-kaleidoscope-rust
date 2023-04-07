@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
             Token::Number(_) => self.parse_number_expr(),
             Token::Op('(') => self.parse_paren_expr(),
             Token::If => self.parse_if_expr(),
-            _ => bail!("Unknown token when expecting an expression"),
+            other => bail!("Unknown token {other:?} when expecting an expression"),
         }
     }
 
@@ -177,8 +177,9 @@ impl<'a> Parser<'a> {
         if !matches!(self.peek_token(), Token::Op('(')) {
             return Ok(ExprAST::VariableExpr(VariableExprAST { name }));
         }
+        self.consume_token();
         let mut args = vec![];
-        if !matches!(self.consume_token(), Token::Op(')')) {
+        if !matches!(self.peek_token(), Token::Op(')')) {
             loop {
                 args.push(self.parse_expression()?);
                 if matches!(self.peek_token(), Token::Op(')')) {

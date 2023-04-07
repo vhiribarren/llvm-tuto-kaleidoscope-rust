@@ -36,8 +36,8 @@ use inkwell::{
 };
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, NumberExprAST, PrototypeAST, TopAST,
-    VariableExprAST, Visitor, ANONYM_FUNCTION,
+    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST,
+    TopAST, VariableExprAST, Visitor, ANONYM_FUNCTION,
 };
 
 pub struct CodeGenVisitor<'ctx> {
@@ -120,8 +120,48 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         }
     }
 
-    fn visit_if_expr(&mut self, _if_elem: &crate::ast::IfExprAST) -> Self::Result {
-        todo!()
+    fn visit_if_expr(&mut self, if_elem: &IfExprAST) -> Self::Result {
+        let cond_value = self.visit_expr(&if_elem.condition)?;
+        let current_func = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("No block"))?
+            .get_parent()
+            .ok_or(anyhow!("No parent"))?;
+        let comparison = self.builder.build_float_compare(
+            inkwell::FloatPredicate::ONE,
+            cond_value.into_float_value(),
+            self.context.f64_type().const_float(0.0),
+            "ifcond",
+        );
+        let then_block = self.context.append_basic_block(current_func, "then");
+        let else_block = self.context.append_basic_block(current_func, "else");
+        let merge_block = self.context.append_basic_block(current_func, "ifcont");
+        self.builder
+            .build_conditional_branch(comparison, then_block, else_block);
+        // Then block
+        self.builder.position_at_end(then_block);
+        let then_value = self.visit_expr(&if_elem.then_block)?.into_float_value();
+        self.builder.build_unconditional_branch(merge_block);
+        let phi_then_block = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("Could not find block"))?;
+        // Else block
+        self.builder.position_at_end(else_block);
+        let else_value = self.visit_expr(&if_elem.else_block)?.into_float_value();
+        self.builder.build_unconditional_branch(merge_block);
+        let phi_else_block = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("Could not find block"))?;
+        // Merge block
+        self.builder.position_at_end(merge_block);
+        let phi_node = self.builder.build_phi(self.context.f64_type(), "iftmp");
+        phi_node.add_incoming(&[(&then_value, phi_then_block), (&else_value, phi_else_block)]);
+        Ok(AnyValueEnum::FloatValue(
+            phi_node.as_basic_value().into_float_value(),
+        ))
     }
 
     fn visit_number_expr(&mut self, num_elem: &NumberExprAST) -> Self::Result {
