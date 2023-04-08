@@ -55,3 +55,22 @@ fn launch_repl() -> Result<()> {
     visitor.print_to_stderr();
     Ok(())
 }
+
+
+
+#[no_mangle]
+pub extern "C" fn hello() -> f64 {
+    println!("Bonjour le monde !");
+    42.0
+}
+
+#[no_mangle]
+pub extern "C" fn square(x: f64) -> f64 {
+    x*x
+}
+
+#[used]
+static KEEP_FUNCTIONS_PARAM_0: [extern "C" fn() -> f64; 1] = [hello];
+
+#[used]
+static KEEP_FUNCTIONS_PARAM_1: [extern "C" fn(f64) -> f64; 1] = [square];
