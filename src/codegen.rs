@@ -117,6 +117,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
             ExprAST::BinaryExpr(bin_elem) => self.visit_binary_expr(bin_elem),
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
             ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
+            ExprAST::ForExpr(for_elem) => self.visit_for_expr(for_elem),
         }
     }
 
@@ -314,5 +315,9 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
                 self.visit_prototype(proto_elem)
             }
         }
+    }
+
+    fn visit_for_expr(&mut self, _e: &crate::ast::ForExprAST) -> Self::Result {
+        todo!()
     }
 }

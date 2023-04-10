@@ -96,7 +96,7 @@ pub struct ForExprAST {
     pub var_name: String,
     pub var_start: Box<ExprAST>,
     pub var_end: Box<ExprAST>,
-    pub step: Box<ExprAST>,
+    pub step: Option<Box<ExprAST>>,
     pub body: Box<ExprAST>,
 }
 
@@ -111,6 +111,7 @@ pub trait Visitor {
     fn visit_binary_expr(&mut self, e: &BinaryExprAST) -> Self::Result;
     fn visit_call_expr(&mut self, e: &CallExprAST) -> Self::Result;
     fn visit_if_expr(&mut self, e: &IfExprAST) -> Self::Result;
+    fn visit_for_expr(&mut self, e: &ForExprAST) -> Self::Result;
 }
 
 pub struct PrintVisitor;
@@ -140,6 +141,7 @@ impl Visitor for PrintVisitor {
             ExprAST::BinaryExpr(bin_elem) => self.visit_binary_expr(bin_elem),
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
             ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
+            ExprAST::ForExpr(for_elem) => self.visit_for_expr(for_elem),
         }
     }
     fn visit_number_expr(&mut self, _num_elem: &NumberExprAST) {
@@ -164,5 +166,11 @@ impl Visitor for PrintVisitor {
         self.visit_expr(&if_elem.condition);
         self.visit_expr(&if_elem.then_block);
         self.visit_expr(&if_elem.else_block);
+    }
+    fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> Self::Result {
+        println!("Visit for expr with var {}", for_elem.var_name);
+        self.visit_expr(&for_elem.var_start);
+        self.visit_expr(&for_elem.var_end);
+        self.visit_expr(&for_elem.body);
     }
 }

@@ -26,8 +26,8 @@ use anyhow::{bail, ensure, Result};
 use once_cell::sync::Lazy;
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, IfExprAST, KaleoGrammar, NumberExprAST,
-    PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
+    BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, KaleoGrammar,
+    NumberExprAST, PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -60,6 +60,14 @@ impl<'a> Parser<'a> {
         parser.parse_top()
     }
 
+    fn consume_and_ensure_token(&mut self, _token: Token) -> Result<()> {
+        ensure!(
+            matches!(self.consume_token(), _token),
+            format!("Was waiting for '{_token:?}' token")
+        );
+        Ok(())
+    }
+
     fn parse_top(&mut self) -> Result<KaleoGrammar> {
         let mut result = vec![];
         loop {
@@ -81,6 +89,7 @@ impl<'a> Parser<'a> {
             Token::Number(_) => self.parse_number_expr(),
             Token::Op('(') => self.parse_paren_expr(),
             Token::If => self.parse_if_expr(),
+            Token::For => self.parse_for_expr(),
             other => bail!("Unknown token {other:?} when expecting an expression"),
         }
     }
@@ -166,6 +175,34 @@ impl<'a> Parser<'a> {
             condition,
             then_block,
             else_block,
+        }))
+    }
+
+    fn parse_for_expr(&mut self) -> Result<ExprAST> {
+        self.consume_and_ensure_token(Token::For)?;
+        let var_name = match self.consume_token() {
+            Token::Identifier(var_name) => var_name,
+            other => bail!("Was waiting for an identifier, but received: {other:?}"),
+        };
+        self.consume_and_ensure_token(Token::Op('='))?;
+        let var_start = Box::new(self.parse_expression()?);
+        self.consume_and_ensure_token(Token::Op(','))?;
+        let var_end = Box::new(self.parse_expression()?);
+        let step = match self.peek_token() {
+            &Token::Op(',') => {
+                self.consume_token();
+                Some(Box::new(self.parse_expression()?))
+            }
+            _ => None,
+        };
+        self.consume_and_ensure_token(Token::In)?;
+        let body = Box::new(self.parse_expression()?);
+        Ok(ExprAST::ForExpr(ForExprAST {
+            var_name,
+            var_start,
+            var_end,
+            step,
+            body,
         }))
     }
 

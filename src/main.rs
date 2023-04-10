@@ -56,8 +56,6 @@ fn launch_repl() -> Result<()> {
     Ok(())
 }
 
-
-
 #[no_mangle]
 pub extern "C" fn hello() -> f64 {
     println!("Bonjour le monde !");
@@ -66,7 +64,7 @@ pub extern "C" fn hello() -> f64 {
 
 #[no_mangle]
 pub extern "C" fn square(x: f64) -> f64 {
-    x*x
+    x * x
 }
 
 #[used]
