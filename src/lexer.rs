@@ -35,6 +35,8 @@ pub enum Token {
     If,
     Then,
     Else,
+    For,
+    In,
     EoF,
 }
 
@@ -136,6 +138,8 @@ impl Iterator for Lexer<'_> {
                 Some(val) if val == "if" => Token::If,
                 Some(val) if val == "then" => Token::Then,
                 Some(val) if val == "else" => Token::Else,
+                Some(val) if val == "for" => Token::For,
+                Some(val) if val == "in" => Token::In,
                 Some(any) => Token::Identifier(any),
             },
             Some(&c) => {
@@ -150,7 +154,7 @@ impl Iterator for Lexer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Token::{Def, Else, Extern, Identifier, If, Number, Op, Then};
+    use crate::lexer::Token::*;
 
     #[test]
     fn scan_simple_def() {
@@ -188,6 +192,20 @@ mod tests {
     }
 
     #[test]
+    fn scan_simple_for() {
+        let input = "for";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), For);
+    }
+
+    #[test]
+    fn scan_simple_in() {
+        let input = "in";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), In);
+    }
+
+    #[test]
     fn scan_simple_number() {
         let input = "42";
         let mut lexer = Lexer::new(input.chars());
@@ -210,14 +228,18 @@ mod tests {
 
     #[test]
     fn scan_strings() {
-        let input = "  hello   1.42   +-   def  extern   if  else then ";
+        let input = r#"  hello   1.42
+           +-    for  def  extern   in    
+            if  else then "#;
         let mut lexer = Lexer::new(input.chars());
         assert_eq!(lexer.next().unwrap(), Identifier("hello".to_string()));
         assert_eq!(lexer.next().unwrap(), Number(1.42));
         assert_eq!(lexer.next().unwrap(), Op('+'));
         assert_eq!(lexer.next().unwrap(), Op('-'));
+        assert_eq!(lexer.next().unwrap(), For);
         assert_eq!(lexer.next().unwrap(), Def);
         assert_eq!(lexer.next().unwrap(), Extern);
+        assert_eq!(lexer.next().unwrap(), In);
         assert_eq!(lexer.next().unwrap(), If);
         assert_eq!(lexer.next().unwrap(), Else);
         assert_eq!(lexer.next().unwrap(), Then);
