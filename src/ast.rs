@@ -40,6 +40,7 @@ pub enum ExprAST {
     BinaryExpr(BinaryExprAST),
     CallExpr(CallExprAST),
     IfExpr(IfExprAST),
+    ForExpr(ForExprAST),
 }
 
 #[derive(Debug, PartialEq)]
@@ -88,6 +89,15 @@ pub struct IfExprAST {
     pub condition: Box<ExprAST>,
     pub then_block: Box<ExprAST>,
     pub else_block: Box<ExprAST>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ForExprAST {
+    pub var_name: String,
+    pub var_start: Box<ExprAST>,
+    pub var_end: Box<ExprAST>,
+    pub step: Box<ExprAST>,
+    pub body: Box<ExprAST>,
 }
 
 pub trait Visitor {
