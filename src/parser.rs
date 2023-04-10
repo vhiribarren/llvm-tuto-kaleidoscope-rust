@@ -156,20 +156,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_if_expr(&mut self) -> Result<ExprAST> {
-        ensure!(
-            matches!(self.consume_token(), Token::If),
-            "Was waiting for If token"
-        );
+        self.consume_and_ensure_token(Token::If)?;
         let condition = Box::new(self.parse_expression()?);
-        ensure!(
-            matches!(self.consume_token(), Token::Then),
-            "Was waiting for Then token"
-        );
+        self.consume_and_ensure_token(Token::Then)?;
         let then_block = Box::new(self.parse_expression()?);
-        ensure!(
-            matches!(self.consume_token(), Token::Else),
-            "Was waiting for Else token"
-        );
+        self.consume_and_ensure_token(Token::Else)?;
         let else_block = Box::new(self.parse_expression()?);
         Ok(ExprAST::IfExpr(IfExprAST {
             condition,
@@ -237,10 +228,7 @@ impl<'a> Parser<'a> {
             Token::Identifier(identifier_name) => identifier_name,
             _ => bail!("Was waiting a Token::Identifier"),
         };
-        ensure!(
-            matches!(self.consume_token(), Token::Op('(')),
-            "Was waiting for '('"
-        );
+        self.consume_and_ensure_token(Token::Op('('))?;
         let mut arg_names = vec![];
         loop {
             match self.consume_token() {
@@ -257,20 +245,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_definition(&mut self) -> Result<FunctionAST> {
-        ensure!(
-            matches!(self.consume_token(), Token::Def),
-            "Was waiting for Token::Def"
-        );
+        self.consume_and_ensure_token(Token::Def)?;
         let proto = self.parse_prototype()?;
         let expr = self.parse_expression()?;
         Ok(FunctionAST { proto, body: expr })
     }
 
     fn parse_extern(&mut self) -> Result<PrototypeAST> {
-        ensure!(
-            matches!(self.consume_token(), Token::Extern),
-            "Was waiting for Token::Extern"
-        );
+        self.consume_and_ensure_token(Token::Extern)?;
         self.parse_prototype()
     }
 
