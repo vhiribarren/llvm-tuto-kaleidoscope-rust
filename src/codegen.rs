@@ -47,10 +47,11 @@ pub struct CodeGenVisitor<'ctx> {
     builder: Builder<'ctx>,
     modules: Vec<Module<'ctx>>,
     last_pass_manager: PassManager<FunctionValue<'ctx>>,
+    with_optim: bool,
 }
 
 impl<'ctx> CodeGenVisitor<'ctx> {
-    pub fn new(context: &'ctx Context) -> Self {
+    pub fn new(context: &'ctx Context, with_optim: bool) -> Self {
         let (module, pass_manager) = Self::init_new_module(context);
         let modules = vec![module];
         let prototypes = HashMap::new();
@@ -61,6 +62,7 @@ impl<'ctx> CodeGenVisitor<'ctx> {
             builder: context.create_builder(),
             last_pass_manager: pass_manager,
             modules,
+            with_optim,
         }
     }
 
@@ -266,7 +268,9 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
                 if !func.verify(false) {
                     bail!("Verify function detected an issue");
                 }
-                self.last_pass_manager.run_on(&func);
+                if self.with_optim {
+                    self.last_pass_manager.run_on(&func);
+                }
                 Ok(AnyValueEnum::FunctionValue(func))
             }
             error => {

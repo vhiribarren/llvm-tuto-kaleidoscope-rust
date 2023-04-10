@@ -25,16 +25,25 @@ SOFTWARE.
 use std::io::{stdin, BufRead};
 
 use anyhow::Result;
+use clap::Parser;
 use inkwell::{context::Context, values::AnyValue};
 use llvm_tuto_kaleidoscope_rust::{ast::Visitor, codegen::CodeGenVisitor, parser::generate_ast};
 
-fn main() -> Result<()> {
-    launch_repl()
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(long)]
+    without_optim: bool,
 }
 
-fn launch_repl() -> Result<()> {
+fn main() -> Result<()> {
+    let args = Args::parse();
+    launch_repl(&args)
+}
+
+fn launch_repl(args: &Args) -> Result<()> {
     let context = &Context::create();
-    let visitor = &mut CodeGenVisitor::new(context);
+    let visitor = &mut CodeGenVisitor::new(context, !args.without_optim);
     eprint!("ready> ");
     for line in stdin().lock().lines() {
         let line = line?;
