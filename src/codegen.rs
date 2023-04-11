@@ -325,6 +325,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
     fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> Self::Result {
         let var_name = &for_elem.var_name;
         let start_val = self.visit_expr(&for_elem.var_start)?;
+        // Get the current block of the enclosing function
         let pre_header_block = self
             .builder
             .get_insert_block()
@@ -333,27 +334,34 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
             .get_parent()
             .ok_or(anyhow!("Block is not owned by a function"))?;
         let loop_block = self.context.append_basic_block(enclosing_func, "loop");
+        // We jump from the entry block to the loop block
+        // since we cannot directly have a phi instruction
         self.builder.build_unconditional_branch(loop_block);
+        // Preparing the content of the loop block
         self.builder.position_at_end(loop_block);
+        // We start with the phi node and the initial value
         let phi_node = self.builder.build_phi(self.context.f64_type(), var_name);
         phi_node.add_incoming(&[(&start_val.into_float_value(), pre_header_block)]);
-
+        // We update the variable table so that the variable can be used inside the loop block by other instruction
+        // Previous variable with a same name is shadowed, but we save its state to restore it at the end.
         let old_var_val = self.named_values_ctx.insert(
             var_name.into(),
             phi_node.as_basic_value().as_any_value_enum(),
         );
+        // Generating the body of the loop
         self.visit_expr(&for_elem.body)?;
-
+        // Time to increment the for variable ; if not step value, default to 1
         let step_val = match &for_elem.step {
             Some(step) => self.visit_expr(step)?,
             None => self.context.f64_type().const_float(1.0).into(),
         };
+        // Actualising the value of the for variable
         let next_var = self.builder.build_float_add(
             phi_node.as_any_value_enum().into_float_value(),
             step_val.into_float_value(),
             "nextvar",
         );
-
+        // Evaluating condition
         let end_cond = self.visit_expr(&for_elem.var_end)?;
         let end_comp_cmp = self.builder.build_float_compare(
             FloatPredicate::ONE,
@@ -361,7 +369,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
             self.context.f64_type().const_float(0.0),
             "loopcond",
         );
-
+        // Preparing the block after the for block
         let loop_end_block = self
             .builder
             .get_insert_block()
@@ -370,14 +378,14 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         self.builder
             .build_conditional_branch(end_comp_cmp, loop_block, after_block);
         self.builder.position_at_end(after_block);
-
+        // Updating phi node to get actualized for variable
         phi_node.add_incoming(&[(&next_var, loop_end_block)]);
+        // This is the end, restoring shadowed variable if one was existing
         if let Some(val) = old_var_val {
             self.named_values_ctx.insert(var_name.into(), val);
         } else {
             self.named_values_ctx.remove(var_name);
         }
-
         Ok(self.context.f64_type().const_zero().into())
     }
 }
