@@ -33,11 +33,12 @@ use inkwell::{
     passes::PassManager,
     types::BasicMetadataTypeEnum,
     values::{AnyValue, AnyValueEnum, FunctionValue},
+    FloatPredicate,
 };
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST,
-    TopAST, VariableExprAST, Visitor, ANONYM_FUNCTION,
+    BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
+    PrototypeAST, TopAST, VariableExprAST, Visitor, ANONYM_FUNCTION,
 };
 
 pub struct CodeGenVisitor<'ctx> {
@@ -321,7 +322,62 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         }
     }
 
-    fn visit_for_expr(&mut self, _e: &crate::ast::ForExprAST) -> Self::Result {
-        todo!()
+    fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> Self::Result {
+        let var_name = &for_elem.var_name;
+        let start_val = self.visit_expr(&for_elem.var_start)?;
+        let pre_header_block = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("Block not found"))?;
+        let enclosing_func = pre_header_block
+            .get_parent()
+            .ok_or(anyhow!("Block is not owned by a function"))?;
+        let loop_block = self.context.append_basic_block(enclosing_func, "loop");
+        self.builder.build_unconditional_branch(loop_block);
+        self.builder.position_at_end(loop_block);
+        let phi_node = self.builder.build_phi(self.context.f64_type(), var_name);
+        phi_node.add_incoming(&[(&start_val.into_float_value(), pre_header_block)]);
+
+        let old_var_val = self.named_values_ctx.insert(
+            var_name.into(),
+            phi_node.as_basic_value().as_any_value_enum(),
+        );
+        self.visit_expr(&for_elem.body)?;
+
+        let step_val = match &for_elem.step {
+            Some(step) => self.visit_expr(step)?,
+            None => self.context.f64_type().const_float(1.0).into(),
+        };
+        let next_var = self.builder.build_float_add(
+            phi_node.as_any_value_enum().into_float_value(),
+            step_val.into_float_value(),
+            "nextvar",
+        );
+
+        let end_cond = self.visit_expr(&for_elem.var_end)?;
+        let end_comp_cmp = self.builder.build_float_compare(
+            FloatPredicate::ONE,
+            end_cond.into_float_value(),
+            self.context.f64_type().const_float(0.0),
+            "loopcond",
+        );
+
+        let loop_end_block = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("Block not found"))?;
+        let after_block = self.context.append_basic_block(enclosing_func, "afterloop");
+        self.builder
+            .build_conditional_branch(end_comp_cmp, loop_block, after_block);
+        self.builder.position_at_end(after_block);
+
+        phi_node.add_incoming(&[(&next_var, loop_end_block)]);
+        if let Some(val) = old_var_val {
+            self.named_values_ctx.insert(var_name.into(), val);
+        } else {
+            self.named_values_ctx.remove(var_name);
+        }
+
+        Ok(self.context.f64_type().const_zero().into())
     }
 }
