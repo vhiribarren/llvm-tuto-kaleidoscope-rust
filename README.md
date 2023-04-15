@@ -28,7 +28,10 @@ Here what is currently done, with some differences with the original tutorial:
     - It it not possible to redefine an existing function.
 
 - Step 5: Control flow extension
-    - Work in progress
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl05.html
+    - Added a CLI option to disable optimization and observe result on IR
+
+- Step 6: work in progress
 
 
 ## How to run
