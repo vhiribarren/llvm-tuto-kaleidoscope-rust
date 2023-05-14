@@ -70,6 +70,13 @@ pub struct CallExprAST {
 pub struct PrototypeAST {
     pub name: String,
     pub args: Vec<String>,
+    pub operator: Option<Operator>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Operator {
+    Unary,
+    Binary { precedence: usize },
 }
 
 #[derive(Debug, PartialEq)]

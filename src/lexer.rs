@@ -32,6 +32,8 @@ pub enum Token {
     Identifier(String),
     Number(f64),
     Op(char),
+    Binary,
+    Unary,
     If,
     Then,
     Else,
@@ -140,6 +142,8 @@ impl Iterator for Lexer<'_> {
                 Some(val) if val == "else" => Token::Else,
                 Some(val) if val == "for" => Token::For,
                 Some(val) if val == "in" => Token::In,
+                Some(val) if val == "binary" => Token::Binary,
+                Some(val) if val == "unary" => Token::Unary,
                 Some(any) => Token::Identifier(any),
             },
             Some(&c) => {
@@ -224,6 +228,20 @@ mod tests {
         let input = "(";
         let mut lexer = Lexer::new(input.chars());
         assert_eq!(lexer.next().unwrap(), Op('('));
+    }
+
+    #[test]
+    fn scan_simple_binary() {
+        let input = "binary";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Binary);
+    }
+
+    #[test]
+    fn scan_simple_unary() {
+        let input = "unary";
+        let mut lexer = Lexer::new(input.chars());
+        assert_eq!(lexer.next().unwrap(), Unary);
     }
 
     #[test]

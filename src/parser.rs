@@ -27,7 +27,7 @@ use once_cell::sync::Lazy;
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, KaleoGrammar,
-    NumberExprAST, PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
+    NumberExprAST, Operator, PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -224,20 +224,43 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_prototype(&mut self) -> Result<PrototypeAST> {
-        let identifier_name = match self.consume_token() {
-            Token::Identifier(identifier_name) => identifier_name,
+        let mut operator = None;
+        let name = match self.consume_token() {
+            Token::Identifier(name) => name,
+            Token::Binary => {
+                let op_id = match self.consume_token() {
+                    Token::Identifier(op) => op,
+                    _ => bail!("Was expecting an Identifier"),
+                };
+                let mut precedence = 30;
+                if let Token::Number(prec_candidate) = self.peek_token() {
+                    if *prec_candidate < 1.0 || *prec_candidate > 100.0 {
+                        bail!("Invalid precedence: must be 1..100");
+                    }
+                    precedence = *prec_candidate as usize;
+                    self.consume_token();
+                }
+                operator = Some(Operator::Binary { precedence });
+                format!("binary{op_id}")
+            }
             _ => bail!("Was waiting a Token::Identifier"),
         };
         self.consume_and_ensure_token(Token::Op('('))?;
-        let mut arg_names = vec![];
+        let mut args = vec![];
         loop {
             match self.consume_token() {
-                Token::Identifier(id) => arg_names.push(id),
+                Token::Identifier(id) => args.push(id),
                 Token::Op(')') => {
+                    match operator {
+                        Some(Operator::Binary { .. }) => ensure!(args.len() == 2),
+                        Some(Operator::Unary) => ensure!(args.len() == 1),
+                        None => (),
+                    };
                     return Ok(PrototypeAST {
-                        name: identifier_name,
-                        args: arg_names,
-                    })
+                        name,
+                        args,
+                        operator,
+                    });
                 }
                 _ => bail!("Was expecting ')'"),
             }
@@ -261,6 +284,7 @@ impl<'a> Parser<'a> {
         let anonymous_prototype = PrototypeAST {
             name: String::from(ANONYM_FUNCTION),
             args: vec![],
+            operator: None,
         };
         Ok(FunctionAST {
             body: expr,
@@ -288,6 +312,7 @@ mod tests {
         let result = KaleoGrammar(vec![TopAST::Prototype(PrototypeAST {
             name: String::from("sin"),
             args: vec![String::from("a")],
+            operator: None,
         })]);
         assert_eq!(ast, result);
     }
@@ -302,6 +327,7 @@ mod tests {
             proto: PrototypeAST {
                 name: "foo".to_string(),
                 args: vec!["x".to_string(), "y".to_string()],
+                operator: None,
             },
             body: ExprAST::BinaryExpr(BinaryExprAST {
                 op: '+',
@@ -333,6 +359,7 @@ mod tests {
                 proto: PrototypeAST {
                     name: "foo".to_string(),
                     args: vec!["x".to_string(), "y".to_string()],
+                    operator: None,
                 },
                 body: ExprAST::BinaryExpr(BinaryExprAST {
                     op: '+',
@@ -348,6 +375,7 @@ mod tests {
                 proto: PrototypeAST {
                     name: ANONYM_FUNCTION.to_string(),
                     args: vec![],
+                    operator: None,
                 },
                 body: ExprAST::VariableExpr(VariableExprAST {
                     name: "y".to_string(),
