@@ -51,6 +51,21 @@ pub struct CodeGenVisitor<'ctx> {
     with_optim: bool,
 }
 
+/// Due to issue or having partial borrow before borrowing the whole structure,
+/// a macro is used. The output of generate_and_get_func is not used, otherwise
+/// it become difficult to borrow self later.
+macro_rules! generate_and_get_func {
+    ($codegen:ident, $func_name:ident) => {{
+        $codegen.generate_and_get_func($func_name)?;
+        $codegen
+            .modules
+            .last()
+            .unwrap()
+            .get_function($func_name)
+            .unwrap()
+    }};
+}
+
 impl<'ctx> CodeGenVisitor<'ctx> {
     pub fn new(context: &'ctx Context, with_optim: bool) -> Self {
         let (module, pass_manager) = Self::init_new_module(context);
@@ -87,6 +102,22 @@ impl<'ctx> CodeGenVisitor<'ctx> {
     pub fn print_to_stderr(&self) {
         for module in &self.modules {
             module.print_to_stderr();
+        }
+    }
+
+    fn generate_and_get_func(&mut self, func_name: &str) -> Result<FunctionValue> {
+        if let Some(func_val) = self.modules.last().unwrap().get_function(func_name) {
+            Ok(func_val)
+        } else {
+            let proto_ast = self
+                .prototypes
+                .get(func_name)
+                .ok_or(anyhow!("{func_name} not found in prototype lists"))?
+                .clone();
+            match self.visit_prototype(&proto_ast)? {
+                AnyValueEnum::FunctionValue(func_val) => Ok(func_val),
+                _ => bail!("Shoul have been a function value"),
+            }
         }
     }
 }
@@ -182,20 +213,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
 
     fn visit_call_expr(&mut self, call_elem: &CallExprAST) -> Self::Result {
         let func_name = &call_elem.callee;
-        let func = if let Some(func_val) = self.modules.last().unwrap().get_function(func_name) {
-            func_val
-        } else {
-            let proto_ast = self
-                .prototypes
-                .get(func_name)
-                .ok_or(anyhow!("{func_name} not found in prototype lists"))?
-                .clone();
-            match self.visit_prototype(&proto_ast)? {
-                AnyValueEnum::FunctionValue(func_val) => func_val,
-                _ => bail!("Shoul have been a function value"),
-            }
-        };
-
+        let func = generate_and_get_func!(self, func_name);
         ensure!(
             func.count_params() == call_elem.args.len() as u32,
             "Bad parameter number"
@@ -244,17 +262,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
                 bail!("Prototype {func_name} already exists");
             }
         }
-        let func = match self
-            .modules
-            .last()
-            .unwrap()
-            .get_function(&func_elem.proto.name)
-        {
-            Some(func) => func,
-            None => self
-                .visit_prototype(&func_elem.proto)?
-                .into_function_value(),
-        };
+        let func = generate_and_get_func!(self, func_name);
         ensure!(!func.is_null(), "Function cannot be redefined");
         let basic_block = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(basic_block);
