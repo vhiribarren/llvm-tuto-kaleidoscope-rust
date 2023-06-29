@@ -55,14 +55,14 @@ pub struct CodeGenVisitor<'ctx> {
 /// a macro is used. The output of generate_and_get_func is not used, otherwise
 /// it become difficult to borrow self later.
 macro_rules! generate_and_get_func {
-    ($codegen:ident, $func_name:ident) => {{
+    ($codegen:ident, $func_name:expr) => {{
         $codegen.generate_and_get_func($func_name)?;
         $codegen
             .modules
             .last()
             .unwrap()
             .get_function($func_name)
-            .unwrap()
+            .ok_or(anyhow!("{} not found in prototype lists", $func_name))
     }};
 }
 
@@ -139,7 +139,16 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
                 self.builder
                     .build_unsigned_int_to_float(comp, self.context.f64_type(), "booltmp")
             }
-            other => bail!("Unknown operator: {other}"),
+            other => {
+                let func_name = PrototypeAST::gen_binary_func_name(other);
+                let func = generate_and_get_func!(self, &func_name)?;
+                self.builder
+                    .build_call(func, &[l.into(), r.into()], "binop")
+                    .try_as_basic_value()
+                    .left()
+                    .ok_or(anyhow!("Error when calling function"))?
+                    .into_float_value()
+            }
         };
         Ok(AnyValueEnum::FloatValue(result))
     }
@@ -213,7 +222,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
 
     fn visit_call_expr(&mut self, call_elem: &CallExprAST) -> Self::Result {
         let func_name = &call_elem.callee;
-        let func = generate_and_get_func!(self, func_name);
+        let func = generate_and_get_func!(self, func_name)?;
         ensure!(
             func.count_params() == call_elem.args.len() as u32,
             "Bad parameter number"
@@ -254,15 +263,13 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
     fn visit_function(&mut self, func_elem: &FunctionAST) -> Self::Result {
         let proto_elem = &func_elem.proto;
         let func_name = &proto_elem.name;
-        if !func_elem.is_top_function() {
-            let insert_result = self
-                .prototypes
-                .insert(proto_elem.name.to_string(), proto_elem.clone());
-            if insert_result.is_some() {
-                bail!("Prototype {func_name} already exists");
-            }
+        let insert_result = self
+            .prototypes
+            .insert(proto_elem.name.to_string(), proto_elem.clone());
+        if insert_result.is_some() && !func_elem.is_top_function() {
+            bail!("Prototype {func_name} already exists");
         }
-        let func = generate_and_get_func!(self, func_name);
+        let func = generate_and_get_func!(self, func_name)?;
         ensure!(!func.is_null(), "Function cannot be redefined");
         let basic_block = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(basic_block);

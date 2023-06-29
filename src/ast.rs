@@ -73,10 +73,19 @@ pub struct PrototypeAST {
     pub operator: Option<Operator>,
 }
 
+impl PrototypeAST {
+    pub fn gen_binary_func_name(op: char) -> String {
+        format!("binary{op}")
+    }
+    pub fn is_binary_op(&self) -> bool {
+        matches!(&self.operator, Some(Operator::Binary { .. }))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
     Unary,
-    Binary { precedence: usize },
+    Binary { op_name: char, precedence: isize },
 }
 
 #[derive(Debug, PartialEq)]

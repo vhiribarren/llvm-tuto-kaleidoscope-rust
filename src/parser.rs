@@ -33,29 +33,45 @@ use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
 use std::iter::Peekable;
 
-pub struct Parser<'a> {
-    lexer: Peekable<Lexer<'a>>,
-}
+static BIN_OP_PRIORITY: Lazy<HashMap<char, isize>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+    m.insert('<', 10);
+    m.insert('+', 20);
+    m.insert('-', 20);
+    m.insert('*', 40);
+    m
+});
 
-impl<'a> Parser<'a> {
-    fn get_token_precedence(op: char) -> isize {
-        static BIN_OP_PRIORITY: Lazy<HashMap<char, isize>> = Lazy::new(|| {
-            let mut m = HashMap::new();
-            m.insert('<', 10);
-            m.insert('+', 20);
-            m.insert('-', 20);
-            m.insert('*', 40);
-            m
-        });
-        match BIN_OP_PRIORITY.get(&op) {
+/// Due to issue or having partial borrow before borrowing the whole structure,
+/// a macro is used. The output of generate_and_get_func is not used, otherwise
+/// it become difficult to borrow self later.
+macro_rules! get_token_precedence {
+    ($self:ident, $op:expr) => {{
+        match $self.token_precedence.get(&$op) {
             Some(val) => *val,
             None => -1,
         }
+    }};
+}
+
+pub struct Parser<'a> {
+    lexer: Peekable<Lexer<'a>>,
+    token_precedence: HashMap<char, isize>,
+}
+
+impl<'a> Parser<'a> {
+    fn add_token_precedence(&mut self, op: char, prec: isize) {
+        self.token_precedence.insert(op, prec);
+    }
+
+    fn get_token_precedence(&self, op: char) -> isize {
+        get_token_precedence!(self, op)
     }
 
     pub fn parse(lexer: Lexer<'a>) -> Result<KaleoGrammar> {
         let parser = &mut Parser {
             lexer: lexer.peekable(),
+            token_precedence: BIN_OP_PRIORITY.clone(),
         };
         parser.parse_top()
     }
@@ -119,14 +135,15 @@ impl<'a> Parser<'a> {
                 &Token::Op(op) => op,
                 _ => return Ok(lhs),
             };
-            let tok_prec = Parser::get_token_precedence(op);
+            let tok_prec = self.get_token_precedence(op);
             if tok_prec < expr_precedence {
                 return Ok(lhs);
             }
             self.consume_token();
             let mut rhs = self.parse_primary()?;
             if let Token::Op(next_op) = self.peek_token() {
-                let next_prec = Parser::get_token_precedence(*next_op);
+                let test = *next_op;
+                let next_prec = get_token_precedence!(self, test);
                 if tok_prec < next_prec {
                     rhs = self.parse_bin_op_rhs(tok_prec + 1, rhs)?;
                 }
@@ -224,24 +241,31 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_prototype(&mut self) -> Result<PrototypeAST> {
-        let mut operator = None;
-        let name = match self.consume_token() {
-            Token::Identifier(name) => name,
+        let operator;
+        let name;
+        match self.consume_token() {
+            Token::Identifier(n) => {
+                name = n;
+                operator = None;
+            }
             Token::Binary => {
-                let op_id = match self.consume_token() {
-                    Token::Identifier(op) => op,
-                    _ => bail!("Was expecting an Identifier"),
+                let op_name = match self.consume_token() {
+                    Token::Op(op) => op,
+                    other => bail!("Was expecting an Op, got {other:?}"),
                 };
                 let mut precedence = 30;
                 if let Token::Number(prec_candidate) = self.peek_token() {
                     if *prec_candidate < 1.0 || *prec_candidate > 100.0 {
                         bail!("Invalid precedence: must be 1..100");
                     }
-                    precedence = *prec_candidate as usize;
+                    precedence = *prec_candidate as isize;
                     self.consume_token();
                 }
-                operator = Some(Operator::Binary { precedence });
-                format!("binary{op_id}")
+                operator = Some(Operator::Binary {
+                    op_name,
+                    precedence,
+                });
+                name = PrototypeAST::gen_binary_func_name(op_name);
             }
             _ => bail!("Was waiting a Token::Identifier"),
         };
@@ -271,6 +295,15 @@ impl<'a> Parser<'a> {
         self.consume_and_ensure_token(Token::Def)?;
         let proto = self.parse_prototype()?;
         let expr = self.parse_expression()?;
+        if let Some(op) = &proto.operator {
+            match op {
+                Operator::Unary => todo!(),
+                Operator::Binary {
+                    op_name,
+                    precedence,
+                } => self.add_token_precedence(*op_name, *precedence),
+            };
+        }
         Ok(FunctionAST { proto, body: expr })
     }
 
