@@ -27,7 +27,7 @@ use std::io::{stdin, BufRead};
 use anyhow::Result;
 use clap::Parser;
 use inkwell::{context::Context, values::AnyValue};
-use llvm_tuto_kaleidoscope_rust::{ast::Visitor, codegen::CodeGenVisitor, parser::generate_ast};
+use llvm_tuto_kaleidoscope_rust::{ast::Visitor, codegen::CodeGenVisitor, parser::GlobalParser};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -43,11 +43,12 @@ fn main() -> Result<()> {
 
 fn launch_repl(args: &Args) -> Result<()> {
     let context = &Context::create();
+    let global_parser = &mut GlobalParser::default();
     let visitor = &mut CodeGenVisitor::new(context, !args.without_optim);
     eprint!("ready> ");
     for line in stdin().lock().lines() {
         let line = line?;
-        match generate_ast(&line) {
+        match global_parser.parse(&line) {
             Ok(ast) => {
                 for ast_part in &ast.0 {
                     match visitor.visit_top(ast_part) {

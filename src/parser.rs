@@ -42,6 +42,29 @@ static BIN_OP_PRIORITY: Lazy<HashMap<char, isize>> = Lazy::new(|| {
     m
 });
 
+pub struct GlobalParser {
+    token_precedence: HashMap<char, isize>,
+}
+
+impl Default for GlobalParser {
+    fn default() -> Self {
+        Self {
+            token_precedence: BIN_OP_PRIORITY.clone(),
+        }
+    }
+}
+
+impl GlobalParser {
+    pub fn parse(&mut self, input: &str) -> Result<KaleoGrammar> {
+        let lexer = Lexer::new(input.chars()).peekable();
+        let parser = &mut Parser {
+            lexer,
+            token_precedence: &mut self.token_precedence,
+        };
+        parser.parse_top()
+    }
+}
+
 /// Due to issue or having partial borrow before borrowing the whole structure,
 /// a macro is used. The output of generate_and_get_func is not used, otherwise
 /// it become difficult to borrow self later.
@@ -56,7 +79,7 @@ macro_rules! get_token_precedence {
 
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
-    token_precedence: HashMap<char, isize>,
+    token_precedence: &'a mut HashMap<char, isize>,
 }
 
 impl<'a> Parser<'a> {
@@ -66,14 +89,6 @@ impl<'a> Parser<'a> {
 
     fn get_token_precedence(&self, op: char) -> isize {
         get_token_precedence!(self, op)
-    }
-
-    pub fn parse(lexer: Lexer<'a>) -> Result<KaleoGrammar> {
-        let parser = &mut Parser {
-            lexer: lexer.peekable(),
-            token_precedence: BIN_OP_PRIORITY.clone(),
-        };
-        parser.parse_top()
     }
 
     fn consume_and_ensure_token(&mut self, _token: Token) -> Result<()> {
@@ -324,11 +339,6 @@ impl<'a> Parser<'a> {
             proto: anonymous_prototype,
         })
     }
-}
-
-pub fn generate_ast(input: &str) -> Result<KaleoGrammar> {
-    let lexer = Lexer::new(input.chars());
-    Parser::parse(lexer)
 }
 
 #[cfg(test)]
