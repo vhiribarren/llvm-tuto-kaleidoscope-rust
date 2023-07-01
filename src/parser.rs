@@ -351,7 +351,7 @@ mod tests {
         let input = r#"
         extern sin(a);
         "#;
-        let ast = generate_ast(input).unwrap();
+        let ast = GlobalParser::default().parse(input).unwrap();
         let result = KaleoGrammar(vec![TopAST::Prototype(PrototypeAST {
             name: String::from("sin"),
             args: vec![String::from("a")],
@@ -365,7 +365,7 @@ mod tests {
         let input = r#"
         def foo(x y) x+foo(y, 4.0);
         "#;
-        let ast = generate_ast(input).unwrap();
+        let ast = GlobalParser::default().parse(input).unwrap();
         let result = KaleoGrammar(vec![TopAST::Function(FunctionAST {
             proto: PrototypeAST {
                 name: "foo".to_string(),
@@ -396,7 +396,7 @@ mod tests {
         let input = r#"
         def foo(x y) x+y y;
         "#;
-        let ast = generate_ast(input).unwrap();
+        let ast = GlobalParser::default().parse(input).unwrap();
         let result = KaleoGrammar(vec![
             TopAST::Function(FunctionAST {
                 proto: PrototypeAST {
@@ -433,7 +433,7 @@ mod tests {
         let input = r#"
         def foo(x y) x+y );
         "#;
-        let ast = generate_ast(input);
+        let ast = GlobalParser::default().parse(input);
         assert!(ast.is_err());
     }
 }
