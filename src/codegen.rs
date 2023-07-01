@@ -38,10 +38,10 @@ use inkwell::{
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
-    PrototypeAST, TopAST, VariableExprAST, Visitor, ANONYM_FUNCTION,
+    PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
 };
 
-pub struct CodeGenVisitor<'ctx> {
+pub struct CodeGen<'ctx> {
     context: &'ctx Context,
     named_values_ctx: HashMap<String, AnyValueEnum<'ctx>>,
     prototypes: HashMap<String, PrototypeAST>,
@@ -66,12 +66,14 @@ macro_rules! generate_and_get_func {
     }};
 }
 
-impl<'ctx> CodeGenVisitor<'ctx> {
+type CodeGenResult<'ctx> = Result<AnyValueEnum<'ctx>>;
+
+impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, with_optim: bool) -> Self {
         let (module, pass_manager) = Self::init_new_module(context);
         let modules = vec![module];
         let prototypes = HashMap::new();
-        CodeGenVisitor {
+        CodeGen {
             context,
             named_values_ctx: HashMap::new(),
             prototypes,
@@ -120,12 +122,8 @@ impl<'ctx> CodeGenVisitor<'ctx> {
             }
         }
     }
-}
 
-impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
-    type Result = Result<AnyValueEnum<'ctx>>;
-
-    fn visit_binary_expr(&mut self, bin_elem: &BinaryExprAST) -> Self::Result {
+    fn visit_binary_expr(&mut self, bin_elem: &BinaryExprAST) -> CodeGenResult<'ctx> {
         let l = self.visit_expr(&bin_elem.lhs)?.into_float_value();
         let r = self.visit_expr(&bin_elem.rhs)?.into_float_value();
         let result = match bin_elem.op {
@@ -153,7 +151,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         Ok(AnyValueEnum::FloatValue(result))
     }
 
-    fn visit_expr(&mut self, expr_elem: &ExprAST) -> Self::Result {
+    fn visit_expr(&mut self, expr_elem: &ExprAST) -> CodeGenResult<'ctx> {
         match expr_elem {
             ExprAST::NumberExpr(num_elem) => self.visit_number_expr(num_elem),
             ExprAST::VariableExpr(var_elem) => self.visit_variable_expr(var_elem),
@@ -164,7 +162,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         }
     }
 
-    fn visit_if_expr(&mut self, if_elem: &IfExprAST) -> Self::Result {
+    fn visit_if_expr(&mut self, if_elem: &IfExprAST) -> CodeGenResult<'ctx> {
         let cond_value = self.visit_expr(&if_elem.condition)?;
         let current_func = self
             .builder
@@ -208,19 +206,19 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         ))
     }
 
-    fn visit_number_expr(&mut self, num_elem: &NumberExprAST) -> Self::Result {
+    fn visit_number_expr(&mut self, num_elem: &NumberExprAST) -> CodeGenResult<'ctx> {
         let f64_type = self.context.f64_type();
         Ok(AnyValueEnum::FloatValue(f64_type.const_float(num_elem.val)))
     }
 
-    fn visit_variable_expr(&mut self, var_elem: &VariableExprAST) -> Self::Result {
+    fn visit_variable_expr(&mut self, var_elem: &VariableExprAST) -> CodeGenResult<'ctx> {
         Ok(*self
             .named_values_ctx
             .get(&var_elem.name)
             .ok_or(anyhow!("Variable not found"))?)
     }
 
-    fn visit_call_expr(&mut self, call_elem: &CallExprAST) -> Self::Result {
+    fn visit_call_expr(&mut self, call_elem: &CallExprAST) -> CodeGenResult<'ctx> {
         let func_name = &call_elem.callee;
         let func = generate_and_get_func!(self, func_name)?;
         ensure!(
@@ -241,7 +239,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         ))
     }
 
-    fn visit_prototype(&mut self, proto_elem: &PrototypeAST) -> Self::Result {
+    fn visit_prototype(&mut self, proto_elem: &PrototypeAST) -> CodeGenResult<'ctx> {
         let f64_type: BasicMetadataTypeEnum = self.context.f64_type().into();
         let param_types = vec![f64_type; proto_elem.args.len()];
         let func_name = &proto_elem.name;
@@ -260,7 +258,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         Ok(AnyValueEnum::FunctionValue(func))
     }
 
-    fn visit_function(&mut self, func_elem: &FunctionAST) -> Self::Result {
+    fn visit_function(&mut self, func_elem: &FunctionAST) -> CodeGenResult<'ctx> {
         let proto_elem = &func_elem.proto;
         let func_name = &proto_elem.name;
         let insert_result = self
@@ -298,7 +296,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         }
     }
 
-    fn visit_top(&mut self, top_elem: &TopAST) -> Self::Result {
+    pub fn visit_top(&mut self, top_elem: &TopAST) -> CodeGenResult<'ctx> {
         match top_elem {
             TopAST::Function(func_elem) => {
                 self.change_module();
@@ -337,7 +335,7 @@ impl<'ctx> Visitor for CodeGenVisitor<'ctx> {
         }
     }
 
-    fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> Self::Result {
+    fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> CodeGenResult<'ctx> {
         let var_name = &for_elem.var_name;
         let start_val = self.visit_expr(&for_elem.var_start)?;
         // Get the current block of the enclosing function
