@@ -22,7 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std::io::{stdin, BufRead};
+use std::{
+    io::{stdin, BufRead},
+    path::PathBuf,
+};
 
 use anyhow::Result;
 use clap::Parser;
@@ -34,31 +37,47 @@ use llvm_tuto_kaleidoscope_rust::{codegen::CodeGen, parser::GlobalParser};
 struct Args {
     #[arg(long)]
     without_optim: bool,
+    #[arg(short, long)]
+    interactive: bool,
+    #[arg(short, long, value_name = "FILE")]
+    script: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    launch_repl(&args)
+    let context = &Context::create();
+    let codegen = &mut CodeGen::new(context, !args.without_optim);
+    let global_parser = &mut GlobalParser::default();
+
+    if let Some(script_path) = &args.script {
+        let file_data = std::fs::read_to_string(script_path)?;
+        parse_and_execute(global_parser, codegen, &file_data);
+    }
+    if args.script.is_none() || args.interactive {
+        launch_repl(global_parser, codegen)?;
+    }
+    Ok(())
 }
 
-fn launch_repl(args: &Args) -> Result<()> {
-    let context = &Context::create();
-    let global_parser = &mut GlobalParser::default();
-    let codegen = &mut CodeGen::new(context, !args.without_optim);
+fn parse_and_execute(global_parser: &mut GlobalParser, codegen: &mut CodeGen, input: &str) {
+    match global_parser.parse(input) {
+        Ok(ast) => {
+            for ast_part in &ast.0 {
+                match codegen.visit_top(ast_part) {
+                    Ok(ir_value) => println!("{}", ir_value.print_to_string().to_string()),
+                    Err(err) => eprintln!("{err}"),
+                };
+            }
+        }
+        Err(err) => eprintln!("{err}"),
+    };
+}
+
+fn launch_repl(global_parser: &mut GlobalParser, codegen: &mut CodeGen) -> Result<()> {
     eprint!("ready> ");
     for line in stdin().lock().lines() {
         let line = line?;
-        match global_parser.parse(&line) {
-            Ok(ast) => {
-                for ast_part in &ast.0 {
-                    match codegen.visit_top(ast_part) {
-                        Ok(ir_value) => println!("{}", ir_value.print_to_string().to_string()),
-                        Err(err) => eprintln!("{err}"),
-                    };
-                }
-            }
-            Err(err) => eprintln!("{err}"),
-        };
+        parse_and_execute(global_parser, codegen, &line);
         eprint!("\nready> ");
     }
     eprintln!("EOF, stopping parsing");
