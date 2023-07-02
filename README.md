@@ -31,7 +31,9 @@ Here what is currently done, with some differences with the original tutorial:
     - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl05.html
     - Added a CLI option to disable optimization and observe result on IR
 
-- Step 6: work in progress
+- Step 6: User-defined Operators
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl06.html
+    - Add possibility of loading external scripts
 
 
 ## How to run
@@ -39,6 +41,15 @@ Here what is currently done, with some differences with the original tutorial:
 Launch:
 
     cargo run
+
+Some options are available:
+
+    cargo run -- --help
+
+You can notably load files containing kaleido code:
+
+    cargo run -- -s tests/scripts/mandelbrot.kaleido
+
 
 ## License
 
