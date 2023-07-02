@@ -65,18 +65,6 @@ impl GlobalParser {
     }
 }
 
-/// Due to issue or having partial borrow before borrowing the whole structure,
-/// a macro is used. The output of generate_and_get_func is not used, otherwise
-/// it become difficult to borrow self later.
-macro_rules! get_token_precedence {
-    ($self:ident, $op:expr) => {{
-        match $self.token_precedence.get(&$op) {
-            Some(val) => *val,
-            None => -1,
-        }
-    }};
-}
-
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
     token_precedence: &'a mut HashMap<char, isize>,
@@ -88,7 +76,10 @@ impl<'a> Parser<'a> {
     }
 
     fn get_token_precedence(&self, op: char) -> isize {
-        get_token_precedence!(self, op)
+        match self.token_precedence.get(&op) {
+            Some(val) => *val,
+            None => -1,
+        }
     }
 
     fn consume_and_ensure_token(&mut self, _token: Token) -> Result<()> {
@@ -174,7 +165,7 @@ impl<'a> Parser<'a> {
             let mut rhs = self.parse_unary()?;
             if let Token::Op(next_op) = self.peek_token() {
                 let test = *next_op;
-                let next_prec = get_token_precedence!(self, test);
+                let next_prec = self.get_token_precedence(test);
                 if tok_prec < next_prec {
                     rhs = self.parse_bin_op_rhs(tok_prec + 1, rhs)?;
                 }
