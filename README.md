@@ -48,7 +48,7 @@ Some options are available:
 
 You can notably load files containing kaleido code:
 
-    cargo run -- -s tests/scripts/mandelbrot.kaleido
+    cargo run -- -f tests/scripts/mandelbrot.kaleido
 
 
 ## License

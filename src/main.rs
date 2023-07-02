@@ -35,12 +35,21 @@ use llvm_tuto_kaleidoscope_rust::{codegen::CodeGen, parser::GlobalParser};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// Disable LLVM code optimisation
     #[arg(long)]
     without_optim: bool,
+
+    /// If a kaleido script is executed, keep a REPL after
     #[arg(short, long)]
     interactive: bool,
-    #[arg(short, long, value_name = "FILE")]
-    script: Option<PathBuf>,
+
+    /// Execute a file containing a kaleido script
+    #[arg(short, long)]
+    file: Option<PathBuf>,
+
+    /// Mute LLVM code display
+    #[arg(short, long)]
+    silent: bool,
 }
 
 fn main() -> Result<()> {
@@ -49,22 +58,31 @@ fn main() -> Result<()> {
     let codegen = &mut CodeGen::new(context, !args.without_optim);
     let global_parser = &mut GlobalParser::default();
 
-    if let Some(script_path) = &args.script {
+    if let Some(script_path) = &args.file {
         let file_data = std::fs::read_to_string(script_path)?;
-        parse_and_execute(global_parser, codegen, &file_data);
+        parse_and_execute(global_parser, codegen, &file_data, true);
     }
-    if args.script.is_none() || args.interactive {
-        launch_repl(global_parser, codegen)?;
+    if args.file.is_none() || args.interactive {
+        launch_repl(global_parser, codegen, args.silent)?;
     }
     Ok(())
 }
 
-fn parse_and_execute(global_parser: &mut GlobalParser, codegen: &mut CodeGen, input: &str) {
+fn parse_and_execute(
+    global_parser: &mut GlobalParser,
+    codegen: &mut CodeGen,
+    input: &str,
+    silent: bool,
+) {
     match global_parser.parse(input) {
         Ok(ast) => {
             for ast_part in &ast.0 {
                 match codegen.visit_top(ast_part) {
-                    Ok(ir_value) => println!("{}", ir_value.print_to_string().to_string()),
+                    Ok(ir_value) => {
+                        if !silent {
+                            println!("{}", ir_value.print_to_string().to_string())
+                        }
+                    }
                     Err(err) => eprintln!("{err}"),
                 };
             }
@@ -73,11 +91,15 @@ fn parse_and_execute(global_parser: &mut GlobalParser, codegen: &mut CodeGen, in
     };
 }
 
-fn launch_repl(global_parser: &mut GlobalParser, codegen: &mut CodeGen) -> Result<()> {
+fn launch_repl(
+    global_parser: &mut GlobalParser,
+    codegen: &mut CodeGen,
+    silent: bool,
+) -> Result<()> {
     eprint!("ready> ");
     for line in stdin().lock().lines() {
         let line = line?;
-        parse_and_execute(global_parser, codegen, &line);
+        parse_and_execute(global_parser, codegen, &line, silent);
         eprint!("\nready> ");
     }
     eprintln!("EOF, stopping parsing");
