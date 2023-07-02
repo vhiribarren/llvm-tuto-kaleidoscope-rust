@@ -27,7 +27,7 @@ use once_cell::sync::Lazy;
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, KaleoGrammar,
-    NumberExprAST, Operator, PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
+    NumberExprAST, Operator, PrototypeAST, TopAST, UnaryExprAST, VariableExprAST, ANONYM_FUNCTION,
 };
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
@@ -140,8 +140,24 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<ExprAST> {
-        let lhs = self.parse_primary()?;
+        let lhs = self.parse_unary()?;
         self.parse_bin_op_rhs(0, lhs)
+    }
+
+    fn parse_unary(&mut self) -> Result<ExprAST> {
+        match self.peek_token() {
+            Token::Op('(') | Token::Op(',') => return self.parse_primary(),
+            Token::Op(_) => (),
+            _ => return self.parse_primary(),
+        }
+        let Token::Op(opcode) = self.consume_token() else {
+            unreachable!()
+        };
+        let operand = self.parse_unary()?;
+        Ok(ExprAST::UnaryExpr(UnaryExprAST {
+            opcode,
+            operand: Box::new(operand),
+        }))
     }
 
     fn parse_bin_op_rhs(&mut self, expr_precedence: isize, mut lhs: ExprAST) -> Result<ExprAST> {
@@ -155,7 +171,7 @@ impl<'a> Parser<'a> {
                 return Ok(lhs);
             }
             self.consume_token();
-            let mut rhs = self.parse_primary()?;
+            let mut rhs = self.parse_unary()?;
             if let Token::Op(next_op) = self.peek_token() {
                 let test = *next_op;
                 let next_prec = get_token_precedence!(self, test);
@@ -263,6 +279,14 @@ impl<'a> Parser<'a> {
                 name = n;
                 operator = None;
             }
+            Token::Unary => {
+                let op_name = match self.consume_token() {
+                    Token::Op(op) => op,
+                    other => bail!("Was expecting an Op, got {other:?}"),
+                };
+                name = PrototypeAST::gen_unary_func_name(op_name);
+                operator = Some(Operator::Unary);
+            }
             Token::Binary => {
                 let op_name = match self.consume_token() {
                     Token::Op(op) => op,
@@ -310,14 +334,12 @@ impl<'a> Parser<'a> {
         self.consume_and_ensure_token(Token::Def)?;
         let proto = self.parse_prototype()?;
         let expr = self.parse_expression()?;
-        if let Some(op) = &proto.operator {
-            match op {
-                Operator::Unary => todo!(),
-                Operator::Binary {
-                    op_name,
-                    precedence,
-                } => self.add_token_precedence(*op_name, *precedence),
-            };
+        if let Some(Operator::Binary {
+            op_name,
+            precedence,
+        }) = &proto.operator
+        {
+            self.add_token_precedence(*op_name, *precedence);
         }
         Ok(FunctionAST { proto, body: expr })
     }

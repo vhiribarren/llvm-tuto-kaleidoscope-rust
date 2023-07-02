@@ -37,6 +37,7 @@ pub enum TopAST {
 pub enum ExprAST {
     NumberExpr(NumberExprAST),
     VariableExpr(VariableExprAST),
+    UnaryExpr(UnaryExprAST),
     BinaryExpr(BinaryExprAST),
     CallExpr(CallExprAST),
     IfExpr(IfExprAST),
@@ -61,6 +62,12 @@ pub struct BinaryExprAST {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct UnaryExprAST {
+    pub opcode: char,
+    pub operand: Box<ExprAST>,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct CallExprAST {
     pub callee: String,
     pub args: Vec<ExprAST>,
@@ -76,6 +83,9 @@ pub struct PrototypeAST {
 impl PrototypeAST {
     pub fn gen_binary_func_name(op: char) -> String {
         format!("binary{op}")
+    }
+    pub fn gen_unary_func_name(op: char) -> String {
+        format!("unary{op}")
     }
     pub fn is_binary_op(&self) -> bool {
         matches!(&self.operator, Some(Operator::Binary { .. }))

@@ -38,7 +38,7 @@ use inkwell::{
 
 use crate::ast::{
     BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
-    PrototypeAST, TopAST, VariableExprAST, ANONYM_FUNCTION,
+    PrototypeAST, TopAST, UnaryExprAST, VariableExprAST, ANONYM_FUNCTION,
 };
 
 pub struct CodeGen<'ctx> {
@@ -123,6 +123,20 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    fn visit_unary_expr(&mut self, unary_elem: &UnaryExprAST) -> CodeGenResult<'ctx> {
+        let operand_value = self.visit_expr(&unary_elem.operand)?.into_float_value();
+        let func_name = PrototypeAST::gen_unary_func_name(unary_elem.opcode);
+        let func = generate_and_get_func!(self, &func_name)?;
+        let result = self
+            .builder
+            .build_call(func, &[operand_value.into()], "unop")
+            .try_as_basic_value()
+            .left()
+            .ok_or(anyhow!("Error when calling function"))?
+            .into_float_value();
+        Ok(AnyValueEnum::FloatValue(result))
+    }
+
     fn visit_binary_expr(&mut self, bin_elem: &BinaryExprAST) -> CodeGenResult<'ctx> {
         let l = self.visit_expr(&bin_elem.lhs)?.into_float_value();
         let r = self.visit_expr(&bin_elem.rhs)?.into_float_value();
@@ -155,6 +169,7 @@ impl<'ctx> CodeGen<'ctx> {
         match expr_elem {
             ExprAST::NumberExpr(num_elem) => self.visit_number_expr(num_elem),
             ExprAST::VariableExpr(var_elem) => self.visit_variable_expr(var_elem),
+            ExprAST::UnaryExpr(unary_elem) => self.visit_unary_expr(unary_elem),
             ExprAST::BinaryExpr(bin_elem) => self.visit_binary_expr(bin_elem),
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
             ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
