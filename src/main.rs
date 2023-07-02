@@ -77,8 +77,20 @@ pub extern "C" fn square(x: f64) -> f64 {
     x * x
 }
 
+#[no_mangle]
+pub extern "C" fn putchard(x: f64) -> f64 {
+    eprint!("{}", x as u8 as char);
+    0_f64
+}
+
+#[no_mangle]
+pub extern "C" fn printd(x: f64) -> f64 {
+    eprintln!("{x}");
+    0_f64
+}
+
 #[used]
 static KEEP_FUNCTIONS_PARAM_0: [extern "C" fn() -> f64; 1] = [hello];
 
 #[used]
-static KEEP_FUNCTIONS_PARAM_1: [extern "C" fn(f64) -> f64; 1] = [square];
+static KEEP_FUNCTIONS_PARAM_1: [extern "C" fn(f64) -> f64; 3] = [square, putchard, printd];
