@@ -1,12 +1,10 @@
 # LLVM Kaleidoscope Tutorial in Rust
 
-_**Warning: WORK IN PROGRESS**_
-
-This is a toy project to test LLVM and manipulate other tools. It works, but I
-do not necessarily follow all the best practices and the code is not necessarily
-robust against some errors.
+This is a toy project to test LLVM and manipulate other tools.
 
 It follows the tutorial: https://llvm.org/docs/tutorial/index.html
+It is globally a direct port of the C++ code, with some adjustements.
+
 
 [Inkwel](https://github.com/TheDan64/inkwell) is used for LLVM bindings in Rust.
 
@@ -35,6 +33,9 @@ Here what is currently done, with some differences with the original tutorial:
     - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl06.html
     - Add possibility of loading external scripts
 
+- Step 7: Mutable variables
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl07.html
+
 
 ## How to run
 
@@ -49,6 +50,7 @@ Some options are available:
 You can notably load files containing kaleido code:
 
     cargo run -- -f tests/scripts/mandelbrot.kaleido
+    cargo run -- -f tests/scripts/fib.kaleido
 
 
 ## License
