@@ -39,6 +39,7 @@ pub enum Token {
     Else,
     For,
     In,
+    Var,
     EoF,
 }
 
@@ -144,6 +145,7 @@ impl Iterator for Lexer<'_> {
                 Some(val) if val == "in" => Token::In,
                 Some(val) if val == "binary" => Token::Binary,
                 Some(val) if val == "unary" => Token::Unary,
+                Some(val) if val == "var" => Token::Var,
                 Some(any) => Token::Identifier(any),
             },
             Some(&c) => {

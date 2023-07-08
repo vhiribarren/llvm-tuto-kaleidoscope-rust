@@ -35,6 +35,7 @@ pub enum TopAST {
 
 #[derive(Debug, PartialEq)]
 pub enum ExprAST {
+    VarExpr(VarExprAST),
     NumberExpr(NumberExprAST),
     VariableExpr(VariableExprAST),
     UnaryExpr(UnaryExprAST),
@@ -42,6 +43,12 @@ pub enum ExprAST {
     CallExpr(CallExprAST),
     IfExpr(IfExprAST),
     ForExpr(ForExprAST),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct VarExprAST {
+    pub var_names: Vec<(String, Option<ExprAST>)>,
+    pub body: Box<ExprAST>,
 }
 
 #[derive(Debug, PartialEq)]

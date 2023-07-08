@@ -36,10 +36,7 @@ use inkwell::{
     FloatPredicate,
 };
 
-use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
-    PrototypeAST, TopAST, UnaryExprAST, VariableExprAST, ANONYM_FUNCTION,
-};
+use crate::ast::*;
 
 pub struct CodeGen<'ctx> {
     context: &'ctx Context,
@@ -210,7 +207,36 @@ impl<'ctx> CodeGen<'ctx> {
             ExprAST::CallExpr(call_elem) => self.visit_call_expr(call_elem),
             ExprAST::IfExpr(if_elem) => self.visit_if_expr(if_elem),
             ExprAST::ForExpr(for_elem) => self.visit_for_expr(for_elem),
+            ExprAST::VarExpr(var_elem) => self.visit_var_expr(var_elem),
         }
+    }
+
+    fn visit_var_expr(&mut self, var_elem: &VarExprAST) -> CodeGenResult<'ctx> {
+        let old_allocas = &mut Vec::new();
+        let func = self
+            .builder
+            .get_insert_block()
+            .ok_or(anyhow!("Could not find block"))?
+            .get_parent()
+            .ok_or(anyhow!("No parent"))?;
+        for (var_name, init_expr) in &var_elem.var_names {
+            let init_val = match init_expr {
+                Some(expr) => self.visit_expr(expr)?,
+                None => self.context.f64_type().const_float(0.).as_any_value_enum(),
+            };
+            let alloca = Self::create_entry_block_alloca(self.context, &func, var_name)?;
+            self.builder
+                .build_store(alloca, init_val.into_float_value());
+            if let Some(old_alloca) = self.named_values_ctx.get(var_name) {
+                old_allocas.push((var_name.clone(), *old_alloca));
+            }
+            self.named_values_ctx.insert(var_name.clone(), alloca);
+        }
+        let body_val = self.visit_expr(&var_elem.body)?;
+        for (var_name, alloca) in old_allocas {
+            self.named_values_ctx.insert(var_name.clone(), *alloca);
+        }
+        Ok(body_val)
     }
 
     fn visit_if_expr(&mut self, if_elem: &IfExprAST) -> CodeGenResult<'ctx> {

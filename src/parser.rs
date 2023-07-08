@@ -25,10 +25,7 @@ SOFTWARE.
 use anyhow::{bail, ensure, Result};
 use once_cell::sync::Lazy;
 
-use crate::ast::{
-    BinaryExprAST, CallExprAST, ExprAST, ForExprAST, FunctionAST, IfExprAST, KaleoGrammar,
-    NumberExprAST, Operator, PrototypeAST, TopAST, UnaryExprAST, VariableExprAST, ANONYM_FUNCTION,
-};
+use crate::ast::*;
 use crate::lexer::{Lexer, Token};
 use std::collections::HashMap;
 use std::iter::Peekable;
@@ -113,6 +110,7 @@ impl<'a> Parser<'a> {
             Token::Op('(') => self.parse_paren_expr(),
             Token::If => self.parse_if_expr(),
             Token::For => self.parse_for_expr(),
+            Token::Var => self.parse_var_expr(),
             other => bail!("Unknown token {other:?} when expecting an expression"),
         }
     }
@@ -261,6 +259,32 @@ impl<'a> Parser<'a> {
         }
         self.consume_token();
         Ok(ExprAST::CallExpr(CallExprAST { callee: name, args }))
+    }
+
+    fn parse_var_expr(&mut self) -> Result<ExprAST> {
+        self.consume_and_ensure_token(Token::Var)?;
+        let mut var_names = Vec::new();
+        loop {
+            let identifier = match self.consume_token() {
+                Token::Identifier(id) => id,
+                other => bail!("Expected Identifier, received: {other:?}"),
+            };
+            let init_val = match self.peek_token() {
+                &Token::Op('=') => {
+                    self.consume_and_ensure_token(Token::Op('='))?;
+                    Some(self.parse_expression()?)
+                }
+                _ => None,
+            };
+            var_names.push((identifier, init_val));
+            if !matches!(self.peek_token(), &Token::Op(',')) {
+                break;
+            }
+            self.consume_and_ensure_token(Token::Op(','))?;
+        }
+        self.consume_and_ensure_token(Token::In)?;
+        let body = Box::new(self.parse_expression()?);
+        Ok(ExprAST::VarExpr(VarExprAST { var_names, body }))
     }
 
     fn parse_prototype(&mut self) -> Result<PrototypeAST> {
