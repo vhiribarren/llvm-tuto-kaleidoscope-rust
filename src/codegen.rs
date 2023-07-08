@@ -161,6 +161,19 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     fn visit_binary_expr(&mut self, bin_elem: &BinaryExprAST) -> CodeGenResult<'ctx> {
+        if bin_elem.op == '=' {
+            let ExprAST::VariableExpr(lhse) = bin_elem.lhs.as_ref() else {
+                bail!("Destination of '=' must be a variable");
+            };
+            let rhs_val: inkwell::values::FloatValue =
+                self.visit_expr(&bin_elem.rhs)?.into_float_value();
+            let variable = self
+                .named_values_ctx
+                .get(&lhse.name)
+                .ok_or(anyhow!("Unknown variable name"))?;
+            self.builder.build_store(*variable, rhs_val);
+            return Ok(rhs_val.as_any_value_enum());
+        }
         let l = self.visit_expr(&bin_elem.lhs)?.into_float_value();
         let r = self.visit_expr(&bin_elem.rhs)?.into_float_value();
         let result = match bin_elem.op {

@@ -35,6 +35,7 @@ use std::iter::Peekable;
 
 static BIN_OP_PRIORITY: Lazy<HashMap<char, isize>> = Lazy::new(|| {
     let mut m = HashMap::new();
+    m.insert('=', 2);
     m.insert('<', 10);
     m.insert('+', 20);
     m.insert('-', 20);
