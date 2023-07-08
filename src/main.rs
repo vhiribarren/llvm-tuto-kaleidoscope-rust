@@ -74,21 +74,20 @@ fn parse_and_execute(
     input: &str,
     silent: bool,
 ) {
-    match global_parser.parse(input) {
-        Ok(ast) => {
-            for ast_part in &ast.0 {
-                match codegen.visit_top(ast_part) {
-                    Ok(ir_value) => {
-                        if !silent {
-                            println!("{}", ir_value.print_to_string().to_string())
-                        }
-                    }
-                    Err(err) => eprintln!("{err}"),
-                };
-            }
-        }
-        Err(err) => eprintln!("{err}"),
+    let ast = match global_parser.parse(input) {
+        Ok(ast) => ast,
+        Err(err) => return eprintln!("{err}"),
     };
+    for ast_part in &ast.0 {
+        match codegen.visit_top(ast_part) {
+            Ok(ir_value) => {
+                if !silent {
+                    println!("{}", ir_value.print_to_string().to_string())
+                }
+            }
+            Err(err) => eprintln!("{err}"),
+        };
+    }
 }
 
 fn launch_repl(

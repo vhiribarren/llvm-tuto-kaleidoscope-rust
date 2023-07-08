@@ -32,7 +32,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::BasicMetadataTypeEnum,
-    values::{AnyValue, AnyValueEnum, FunctionValue},
+    values::{AnyValue, AnyValueEnum, FunctionValue, PointerValue},
     FloatPredicate,
 };
 
@@ -43,7 +43,7 @@ use crate::ast::{
 
 pub struct CodeGen<'ctx> {
     context: &'ctx Context,
-    named_values_ctx: HashMap<String, AnyValueEnum<'ctx>>,
+    named_values_ctx: HashMap<String, PointerValue<'ctx>>,
     prototypes: HashMap<String, PrototypeAST>,
     builder: Builder<'ctx>,
     modules: Vec<Module<'ctx>>,
@@ -87,10 +87,17 @@ impl<'ctx> CodeGen<'ctx> {
     fn init_new_module(context: &Context) -> (Module, PassManager<FunctionValue>) {
         let module = context.create_module("my cool JIT");
         let pass_manager = PassManager::create(&module);
+        // Promote allocas to registers.
+        pass_manager.add_promote_memory_to_register_pass();
+        // Do simple "peephole" optimizations and bit-twiddling optzns.
         pass_manager.add_instruction_combining_pass();
+        // Reassociate expressions.
         pass_manager.add_reassociate_pass();
         pass_manager.add_gvn_pass();
         pass_manager.add_cfg_simplification_pass();
+        // Promote allocas to registers.
+        pass_manager.add_promote_memory_to_register_pass();
+
         pass_manager.initialize();
         (module, pass_manager)
     }
@@ -121,6 +128,22 @@ impl<'ctx> CodeGen<'ctx> {
                 _ => bail!("Shoul have been a function value"),
             }
         }
+    }
+
+    fn create_entry_block_alloca<'c>(
+        ctx: &'c Context,
+        func: &FunctionValue,
+        var_name: &str,
+    ) -> Result<PointerValue<'c>> {
+        let local_builder = ctx.create_builder();
+        let first_block = func
+            .get_first_basic_block()
+            .ok_or(anyhow!("No first basic block"))?;
+        match first_block.get_first_instruction() {
+            Some(first_inst) => local_builder.position_before(&first_inst),
+            None => local_builder.position_at_end(first_block),
+        }
+        Ok(local_builder.build_alloca(ctx.f64_type(), var_name))
     }
 
     fn visit_unary_expr(&mut self, unary_elem: &UnaryExprAST) -> CodeGenResult<'ctx> {
@@ -227,10 +250,14 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     fn visit_variable_expr(&mut self, var_elem: &VariableExprAST) -> CodeGenResult<'ctx> {
-        Ok(*self
+        let alloca_pointer = self
             .named_values_ctx
             .get(&var_elem.name)
-            .ok_or(anyhow!("Variable not found"))?)
+            .ok_or(anyhow!("Unknown variable name"))?;
+        let loaded_val =
+            self.builder
+                .build_load(self.context.f64_type(), *alloca_pointer, &var_elem.name);
+        Ok(loaded_val.as_any_value_enum())
     }
 
     fn visit_call_expr(&mut self, call_elem: &CallExprAST) -> CodeGenResult<'ctx> {
@@ -288,8 +315,17 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(basic_block);
         self.named_values_ctx.clear();
         for (idx, arg) in func.get_param_iter().enumerate() {
+            let alloca_inst = Self::create_entry_block_alloca(
+                self.context,
+                &func,
+                arg.as_any_value_enum()
+                    .into_float_value()
+                    .get_name()
+                    .to_str()?,
+            )?;
+            self.builder.build_store(alloca_inst, arg);
             self.named_values_ctx
-                .insert(func_elem.proto.args[idx].clone(), arg.as_any_value_enum());
+                .insert(func_elem.proto.args[idx].clone(), alloca_inst);
         }
         match self.visit_expr(&func_elem.body) {
             Ok(ret_val) => {
@@ -351,8 +387,6 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     fn visit_for_expr(&mut self, for_elem: &ForExprAST) -> CodeGenResult<'ctx> {
-        let var_name = &for_elem.var_name;
-        let start_val = self.visit_expr(&for_elem.var_start)?;
         // Get the current block of the enclosing function
         let pre_header_block = self
             .builder
@@ -361,21 +395,23 @@ impl<'ctx> CodeGen<'ctx> {
         let enclosing_func = pre_header_block
             .get_parent()
             .ok_or(anyhow!("Block is not owned by a function"))?;
+
+        let var_name = &for_elem.var_name;
+        let alloca = Self::create_entry_block_alloca(self.context, &enclosing_func, var_name)?;
+        let start_val = self.visit_expr(&for_elem.var_start)?;
+        self.builder
+            .build_store(alloca, start_val.into_float_value());
+
         let loop_block = self.context.append_basic_block(enclosing_func, "loop");
         // We jump from the entry block to the loop block
         // since we cannot directly have a phi instruction
         self.builder.build_unconditional_branch(loop_block);
         // Preparing the content of the loop block
         self.builder.position_at_end(loop_block);
-        // We start with the phi node and the initial value
-        let phi_node = self.builder.build_phi(self.context.f64_type(), var_name);
-        phi_node.add_incoming(&[(&start_val.into_float_value(), pre_header_block)]);
+
         // We update the variable table so that the variable can be used inside the loop block by other instruction
         // Previous variable with a same name is shadowed, but we save its state to restore it at the end.
-        let old_var_val = self.named_values_ctx.insert(
-            var_name.into(),
-            phi_node.as_basic_value().as_any_value_enum(),
-        );
+        let old_var_val = self.named_values_ctx.insert(var_name.into(), alloca);
         // Generating the body of the loop
         self.visit_expr(&for_elem.body)?;
         // Time to increment the for variable ; if not step value, default to 1
@@ -383,12 +419,7 @@ impl<'ctx> CodeGen<'ctx> {
             Some(step) => self.visit_expr(step)?,
             None => self.context.f64_type().const_float(1.0).into(),
         };
-        // Actualising the value of the for variable
-        let next_var = self.builder.build_float_add(
-            phi_node.as_any_value_enum().into_float_value(),
-            step_val.into_float_value(),
-            "nextvar",
-        );
+
         // Evaluating condition
         let end_cond = self.visit_expr(&for_elem.var_end)?;
         let end_comp_cmp = self.builder.build_float_compare(
@@ -397,17 +428,22 @@ impl<'ctx> CodeGen<'ctx> {
             self.context.f64_type().const_float(0.0),
             "loopcond",
         );
-        // Preparing the block after the for block
-        let loop_end_block = self
+
+        let cur_var = self
             .builder
-            .get_insert_block()
-            .ok_or(anyhow!("Block not found"))?;
+            .build_load(self.context.f64_type(), alloca, var_name);
+        let next_var = self.builder.build_float_add(
+            cur_var.into_float_value(),
+            step_val.into_float_value(),
+            "nextvar",
+        );
+        self.builder.build_store(alloca, next_var);
+
+        // Preparing the block after the for block
         let after_block = self.context.append_basic_block(enclosing_func, "afterloop");
         self.builder
             .build_conditional_branch(end_comp_cmp, loop_block, after_block);
         self.builder.position_at_end(after_block);
-        // Updating phi node to get actualized for variable
-        phi_node.add_incoming(&[(&next_var, loop_end_block)]);
         // This is the end, restoring shadowed variable if one was existing
         if let Some(val) = old_var_val {
             self.named_values_ctx.insert(var_name.into(), val);
