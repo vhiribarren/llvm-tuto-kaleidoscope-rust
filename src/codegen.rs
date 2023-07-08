@@ -57,7 +57,7 @@ macro_rules! generate_and_get_func {
         $codegen
             .modules
             .last()
-            .unwrap()
+            .ok_or(anyhow!("No module founds"))?
             .get_function($func_name)
             .ok_or(anyhow!("{} not found in prototype lists", $func_name))
     }};
@@ -112,7 +112,12 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     fn generate_and_get_func(&mut self, func_name: &str) -> Result<FunctionValue> {
-        if let Some(func_val) = self.modules.last().unwrap().get_function(func_name) {
+        if let Some(func_val) = self
+            .modules
+            .last()
+            .ok_or(anyhow!("No module found"))?
+            .get_function(func_name)
+        {
             Ok(func_val)
         } else {
             let proto_ast = self
@@ -328,11 +333,15 @@ impl<'ctx> CodeGen<'ctx> {
             .context
             .f64_type()
             .fn_type(param_types.as_slice(), false);
-        let func = self.modules.last().unwrap().add_function(
-            func_name,
-            func_type,
-            Some(inkwell::module::Linkage::External),
-        );
+        let func = self
+            .modules
+            .last()
+            .ok_or(anyhow!("No module found"))?
+            .add_function(
+                func_name,
+                func_type,
+                Some(inkwell::module::Linkage::External),
+            );
         func.get_params().iter().enumerate().for_each(|(idx, arg)| {
             arg.set_name(&proto_elem.args[idx]);
         });
@@ -395,7 +404,7 @@ impl<'ctx> CodeGen<'ctx> {
                     let execution_engine = self
                         .modules
                         .last()
-                        .unwrap()
+                        .ok_or(anyhow!("No module found"))?
                         .create_jit_execution_engine(inkwell::OptimizationLevel::None)
                         .unwrap();
                     self.modules
