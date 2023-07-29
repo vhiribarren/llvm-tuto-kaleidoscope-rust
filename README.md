@@ -36,6 +36,10 @@ Here what is currently done, with some differences with the original tutorial:
 - Step 7: Mutable variables
     - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl07.html
 
+- Step 8: Compiling to object code
+    - https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl08.html
+    - Add some CLI parameters to generate object code
+
 
 ## How to run
 

@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Result};
 use inkwell::{
@@ -31,6 +31,7 @@ use inkwell::{
     execution_engine::JitFunction,
     module::Module,
     passes::PassManager,
+    targets::{FileType, TargetMachine},
     types::BasicMetadataTypeEnum,
     values::{AnyValue, AnyValueEnum, FunctionValue, PointerValue},
     FloatPredicate,
@@ -109,6 +110,12 @@ impl<'ctx> CodeGen<'ctx> {
         for module in &self.modules {
             module.print_to_stderr();
         }
+    }
+
+    pub fn generate_object_code(&self, target_machine: &TargetMachine, output: &Path) {
+        target_machine
+            .write_to_file(self.modules.last().unwrap(), FileType::Object, output)
+            .unwrap();
     }
 
     fn generate_and_get_func(&mut self, func_name: &str) -> Result<FunctionValue> {

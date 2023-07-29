@@ -29,12 +29,17 @@ use std::{
 
 use anyhow::Result;
 use clap::Parser;
-use inkwell::{context::Context, values::AnyValue};
+use inkwell::{
+    context::Context,
+    targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine},
+    values::AnyValue,
+    OptimizationLevel,
+};
 use llvm_tuto_kaleidoscope_rust::{codegen::CodeGen, parser::GlobalParser};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct Parameters {
     /// Disable LLVM code optimisation
     #[arg(long)]
     without_optim: bool,
@@ -47,63 +52,101 @@ struct Args {
     #[arg(short, long)]
     file: Option<PathBuf>,
 
+    /// Produce an object file
+    #[arg(short, long)]
+    output_object: Option<PathBuf>,
+
     /// Mute LLVM code display
     #[arg(short, long)]
     silent: bool,
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
+    let params = &Parameters::parse();
     let context = &Context::create();
-    let codegen = &mut CodeGen::new(context, !args.without_optim);
-    let global_parser = &mut GlobalParser::default();
+    let codegen = CodeGen::new(context, !params.without_optim);
+    let global_parser = GlobalParser::default();
 
-    if let Some(script_path) = &args.file {
-        let file_data = std::fs::read_to_string(script_path)?;
-        parse_and_execute(global_parser, codegen, &file_data, true);
-    }
-    if args.file.is_none() || args.interactive {
-        launch_repl(global_parser, codegen, args.silent)?;
-    }
-    Ok(())
-}
-
-fn parse_and_execute(
-    global_parser: &mut GlobalParser,
-    codegen: &mut CodeGen,
-    input: &str,
-    silent: bool,
-) {
-    let ast = match global_parser.parse(input) {
-        Ok(ast) => ast,
-        Err(err) => return eprintln!("{err}"),
+    let mut kaleido = Kaleido {
+        params,
+        codegen,
+        global_parser,
     };
-    for ast_part in &ast.0 {
-        match codegen.visit_top(ast_part) {
-            Ok(ir_value) => {
-                if !silent {
-                    println!("{}", ir_value.print_to_string().to_string())
-                }
-            }
-            Err(err) => eprintln!("{err}"),
-        };
+
+    if let Some(script_path) = &params.file {
+        let file_data = std::fs::read_to_string(script_path)?;
+        kaleido.parse_and_execute(&file_data);
     }
+    if params.file.is_none() || params.interactive {
+        kaleido.launch_repl()?;
+    }
+    if params.output_object.is_some() {
+        kaleido.produce_object_code();
+    }
+    Ok(())
 }
 
-fn launch_repl(
-    global_parser: &mut GlobalParser,
-    codegen: &mut CodeGen,
-    silent: bool,
-) -> Result<()> {
-    eprint!("ready> ");
-    for line in stdin().lock().lines() {
-        let line = line?;
-        parse_and_execute(global_parser, codegen, &line, silent);
-        eprint!("\nready> ");
+struct Kaleido<'a> {
+    params: &'a Parameters,
+    codegen: CodeGen<'a>,
+    global_parser: GlobalParser,
+}
+
+impl<'ctx> Kaleido<'ctx> {
+    fn parse_and_execute(&mut self, input: &str) {
+        let ast = match self.global_parser.parse(input) {
+            Ok(ast) => ast,
+            Err(err) => return eprintln!("{err}"),
+        };
+        for ast_part in &ast.0 {
+            match self.codegen.visit_top(ast_part) {
+                Ok(ir_value) => {
+                    if !self.params.silent {
+                        println!("{}", ir_value.print_to_string().to_string())
+                    }
+                }
+                Err(err) => eprintln!("{err}"),
+            };
+        }
     }
-    eprintln!("EOF, stopping parsing");
-    codegen.print_to_stderr();
-    Ok(())
+
+    fn launch_repl(&mut self) -> Result<()> {
+        eprintln!("Ctrl+D Ctrl+D to leave");
+        eprint!("ready> ");
+        for line in stdin().lock().lines() {
+            let line = line?;
+            self.parse_and_execute(&line);
+            eprint!("\nready> ");
+        }
+        eprintln!("EOF, stopping parsing");
+        self.codegen.print_to_stderr();
+        Ok(())
+    }
+
+    fn produce_object_code(&self) {
+        let Some(ref output) = self.params.output_object else {
+            panic!("Cannot produce code if no output file is provided");
+        };
+        Target::initialize_all(&InitializationConfig {
+            asm_parser: true,
+            asm_printer: true,
+            base: true,
+            disassembler: true,
+            info: true,
+            machine_code: true,
+        });
+        let cpu = "generic";
+        let features = "";
+        let level = OptimizationLevel::Default;
+        let reloc_mode = RelocMode::Default;
+        let code_model = CodeModel::Default;
+        let target_triple = TargetMachine::get_default_triple();
+        let target = Target::from_triple(&target_triple).unwrap();
+        let target_machine = target
+            .create_target_machine(&target_triple, cpu, features, level, reloc_mode, code_model)
+            .unwrap();
+        self.codegen.generate_object_code(&target_machine, output);
+    }
 }
 
 #[no_mangle]
